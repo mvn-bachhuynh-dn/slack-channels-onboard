@@ -5,6 +5,13 @@ channel its own agent bundle: an agent (`kiro_agent: kirocrew`), a workspace
 directory, a private memory store, and the `slack.channels.<id>` binding that
 routes the channel to it.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/overview-dark.png">
+  <img alt="The Slack Channels Onboard page: channel counts, a channel waiting for onboarding, and the configured channels with their agent, agent backend, workspace, activation, thread_follow and open settings" src="assets/screenshots/overview-light.png">
+</picture>
+
+<sub>Sample data: every channel, person and path shown is made up.</sub>
+
 ## What it does
 
 - **Detects** channels the bot is a member of that have no binding yet (polls
