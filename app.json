@@ -1,0 +1,60 @@
+{
+  "name": "slack-channels-onboard",
+  "version": "1.0.0",
+  "displayName": "Slack Channels Onboard",
+  "description": "Give every Slack channel its own Kiro Crew agent, workspace and private memory. Detects channels the bot was added to, onboards them automatically or in one click, and lets you re-point the workspace, activation and thread follow from the dashboard.",
+  "author": "mvn-bachhuynh-dn",
+  "license": "Apache-2.0",
+  "tags": [
+    "slack",
+    "automation",
+    "team"
+  ],
+  "highlights": [
+    "Detects Slack channels the bot joined that have no agent yet",
+    "One bundle per channel: agent, workspace directory, private memory, channel binding",
+    "Auto, notify-only or manual onboarding, with an owner-in-channel guard",
+    "Edit workspace, activation and thread_follow per channel without touching config.json",
+    "Unbind channels the bot has left; agent, workspace and memory are kept",
+    "Members and per-channel maintainers, shown only when the gateway can enforce them"
+  ],
+  "iconPath": "assets/icon.png",
+  "screenshots": [
+    "assets/screenshots/main.png"
+  ],
+  "heroImage": "assets/hero-light.png",
+  "heroImageDark": "assets/hero-dark.png",
+  "heroImageDetail": "assets/hero-detail-light.png",
+  "heroImageDetailDark": "assets/hero-detail-dark.png",
+  "minKiroCrewVersion": "0.9.0",
+  "platform": {
+    "os": [
+      "macos",
+      "linux"
+    ]
+  },
+  "backend": {
+    "hooks": {
+      "routes": "backend.routes:register_routes",
+      "on_startup": "backend.hooks:on_startup",
+      "on_shutdown": "backend.hooks:on_shutdown"
+    }
+  },
+  "ui": {
+    "entry": "dist/index.mjs",
+    "pages": [
+      {
+        "route": "/apps/slack-channels-onboard",
+        "label": "Slack Channels Onboard",
+        "icon": "Hash"
+      }
+    ]
+  },
+  "permissions": {
+    "api": [
+      "/api/apps/slack-channels-onboard"
+    ],
+    "storage": true,
+    "network": true
+  }
+}
