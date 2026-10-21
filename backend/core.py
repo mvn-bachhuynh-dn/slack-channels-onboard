@@ -90,6 +90,7 @@ def channel_rows(cfg: dict, bot_channels: list[dict]) -> list[dict]:
                 workspace=ws_key,
                 workspace_dir=(workspaces.get(ws_key) or {}).get("dir", "") if ws_key else "",
                 memory_store=agent.get("memory_store", "") if agent else "",
+                acp_backend=agent_backend(agent),
             )
         rows.append(row)
     return rows
@@ -171,6 +172,36 @@ def remove_binding(data: dict, channel_id: str) -> dict:
     if channel_id not in channels:
         raise ValueError(f"channel {channel_id} is not onboarded")
     del channels[channel_id]
+    return data
+
+
+# ---------------------------------------------------- agent backend (slice 5)
+# ``agents.<name>.acp_backend`` (upstream issue #21910 / PR #16200, carried
+# locally as gateway patch Set U): absent or null inherits the gateway default,
+# "" pins kiro-cli, any other string pins that registered backend id.
+
+
+def agent_backend(agent: dict | None) -> str | None:
+    """The agent's pinned backend, or None when it inherits."""
+    value = (agent or {}).get("acp_backend")
+    return value if isinstance(value, str) else None
+
+
+def channels_for_agent(cfg: dict, agent_name: str) -> list[str]:
+    """Every bound channel whose binding names *agent_name*."""
+    channels = (cfg.get("slack", {}) or {}).get("channels", {}) or {}
+    return sorted(cid for cid, b in channels.items() if (b or {}).get("agent") == agent_name)
+
+
+def set_agent_backend(data: dict, agent_name: str, backend: str | None) -> dict:
+    """config.json mutator: pin (str) or un-pin (None) ``agents.<name>.acp_backend``."""
+    agent = (data.get("agents", {}) or {}).get(agent_name)
+    if not isinstance(agent, dict):
+        raise ValueError(f"agent {agent_name!r} does not exist")
+    if backend is None:
+        agent.pop("acp_backend", None)
+    else:
+        agent["acp_backend"] = backend
     return data
 
 

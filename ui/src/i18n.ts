@@ -31,6 +31,24 @@ const en = {
   colActivation: 'Activation',
   colFollow: 'thread_follow',
   colOpen: 'Open',
+  colBackend: 'Agent backend',
+  backendInherit: (d: string) => `Gateway default (${d})`,
+  backendMissing: ' (not installed)',
+  backendUnusable: ' (unusable)',
+  backendAria: (a: string) => `Backend of agent ${a}`,
+  backendConfirm: (a: string, name: string, maint: boolean) =>
+    [
+      `Switch agent ${a} to the ${name} backend?`,
+      'Applies to new threads only; a running thread keeps its backend.',
+      'Every channel bound to this agent switches with it.',
+      ...(maint ? ['This channel has maintainers: their rules are tested most on Claude.'] : []),
+    ].join('\n'),
+  backendSaved: (a: string, name: string, others: number) =>
+    `Agent ${a} → ${name}. Applies to new threads${others ? `; ${others} other channel(s) sharing this agent switched too` : ''}.`,
+  backendHelp: (refuses: boolean): string =>
+    refuses
+      ? 'Agent backend: the harness the channel\'s agent runs on, for new threads. A backend that is not installed or is blocked makes the bot refuse and say why in the thread; it never falls back to Kiro CLI.'
+      : 'Agent backend: the harness the channel\'s agent runs on, for new threads. On this gateway a backend that cannot run falls back to Kiro CLI.',
   botLeft: 'bot is no longer in the channel',
   unbind: 'Unbind',
   unbindConfirm: (c: string) => `Remove the configuration of #${c}? The bot has left this channel. Its agent, workspace and memory are kept.`,
@@ -122,6 +140,24 @@ const vi: Partial<Strings> = {
   openHelp:
     'Mở: mọi thành viên của channel (không gồm guest và người ngoài workspace) chat được với bot ở channel đó, quyền chỉ đọc, kể cả khi không có trong danh sách Member.',
   colOpen: 'Mở',
+  colBackend: 'Agent backend',
+  backendInherit: (d) => `Mặc định gateway (${d})`,
+  backendMissing: ' (chưa cài)',
+  backendUnusable: ' (không dùng được)',
+  backendAria: (a) => `Backend của agent ${a}`,
+  backendConfirm: (a, name, maint) =>
+    [
+      `Chuyển agent ${a} sang backend ${name}?`,
+      'Chỉ áp dụng cho thread mới; thread đang chạy giữ backend cũ.',
+      'Mọi channel dùng chung agent này đều đổi theo.',
+      ...(maint ? ['Channel này có maintainer: rule của maintainer mới được kiểm thử kỹ trên Claude.'] : []),
+    ].join('\n'),
+  backendSaved: (a, name, others) =>
+    `Agent ${a} → ${name}. Áp dụng cho thread mới${others ? `; đổi luôn ${others} channel khác dùng chung agent này` : ''}.`,
+  backendHelp: (refuses) =>
+    refuses
+      ? 'Agent backend: harness mà agent của channel chạy trên, áp dụng cho thread mới. Backend chưa cài hoặc bị chặn thì bot từ chối chạy và báo lý do trong thread, không tự chuyển sang Kiro CLI.'
+      : 'Agent backend: harness mà agent của channel chạy trên, áp dụng cho thread mới. Trên gateway này, backend không chạy được sẽ tự chuyển sang Kiro CLI.',
   botLeft: 'bot không còn trong channel',
   unbind: 'Gỡ',
   unbindConfirm: (c) => `Gỡ cấu hình của #${c}? Bot đã rời channel này. Agent, workspace và memory được giữ nguyên.`,

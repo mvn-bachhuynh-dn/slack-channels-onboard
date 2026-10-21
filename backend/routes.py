@@ -61,9 +61,11 @@ async def get_channels(request: web.Request, ctx: Any) -> web.Response:
     except Exception as exc:  # noqa: BLE001 - still show the configured ones
         bot, slack_error = [], str(exc)
     cfg = gateway_ops.config_dict()
+    backends = await gateway_ops.backend_support()
     return web.json_response(
         {
             "channels": core.channel_rows(cfg, bot),
+            "backends": backends,
             "agents": sorted((cfg.get("agents") or {}).keys()),
             "settings": load_settings(ctx),
             "slack_error": slack_error,
@@ -276,6 +278,24 @@ async def put_programs(request: web.Request, ctx: Any) -> web.Response:
         return _err(f"programs update failed: {exc}", 500)
 
 
+async def put_backend(request: web.Request, ctx: Any) -> web.Response:
+    denied = await _owner(request, "backend")
+    if denied is not None:
+        return denied
+    body = await _body(request)
+    if "acp_backend" not in body:
+        return _err("acp_backend is required (null inherits the gateway default)")
+    try:
+        return web.json_response(
+            await gateway_ops.update_backend(str(body.get("channel_id", "")).strip(), body["acp_backend"])
+        )
+    except ValueError as exc:
+        return _err(str(exc))
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("slack-channels-onboard: backend update failed")
+        return _err(f"backend update failed: {exc}", 500)
+
+
 async def post_unbind(request: web.Request, ctx: Any) -> web.Response:
     denied = await _owner(request, "unbind")
     if denied is not None:
@@ -301,6 +321,7 @@ def register_routes(ctx: Any) -> list:
         AppRoute(method="PUT", path="/commands", handler=put_commands),
         AppRoute(method="PUT", path="/open", handler=put_open),
         AppRoute(method="PUT", path="/programs", handler=put_programs),
+        AppRoute(method="PUT", path="/backend", handler=put_backend),
         AppRoute(method="GET", path="/channels", handler=get_channels),
         AppRoute(method="POST", path="/onboard", handler=post_onboard),
         AppRoute(method="POST", path="/reconfigure", handler=post_reconfigure),

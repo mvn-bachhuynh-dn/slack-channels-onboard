@@ -477,3 +477,63 @@ def test_unbind_refuses_when_slack_cannot_be_read(people_ops, monkeypatch):
     with pytest.raises(ValueError, match="cannot verify"):
         asyncio.run(ops.unbind("C1"))
 
+
+# ------------------------------------------------- agent backend (slice 5)
+
+
+def test_channel_rows_carry_the_agent_backend_pin():
+    cfg = {"slack": {"channels": {"C1": {"agent": "a"}, "C2": {"agent": "b"}, "C3": {"agent": "k"}}},
+           "agents": {"a": {"acp_backend": "kas"}, "b": {"acp_backend": None}, "k": {"acp_backend": ""}}}
+    rows = {r["id"]: r for r in core.channel_rows(cfg, [])}
+    assert rows["C1"]["acp_backend"] == "kas"
+    assert rows["C2"]["acp_backend"] is None  # null inherits
+    assert rows["C3"]["acp_backend"] == ""  # "" pins kiro-cli, not inherit
+
+
+def test_set_agent_backend_pins_and_unpins():
+    cfg = {"agents": {"a": {"model": "m"}}}
+    core.set_agent_backend(cfg, "a", "")
+    assert cfg["agents"]["a"] == {"model": "m", "acp_backend": ""}
+    core.set_agent_backend(cfg, "a", None)
+    assert cfg["agents"]["a"] == {"model": "m"}
+    with pytest.raises(ValueError, match="does not exist"):
+        core.set_agent_backend(cfg, "zz", "kas")
+
+
+@pytest.fixture
+def backend_ops(people_ops, monkeypatch):
+    people_ops["cfg"]["agents"] = {"a": {}}
+    people_ops["cfg"]["slack"]["channels"]["C2"] = {"agent": "a"}
+    monkeypatch.setattr(ops, "_backend_field_supported", lambda: True)
+    monkeypatch.setattr(ops, "_backend_options_sync", lambda: [
+        {"id": "", "label": "kiro", "installed": "installed"},
+        {"id": "kas", "label": "kas", "installed": "installed"},
+        {"id": "codex", "label": "codex", "installed": "missing"},
+    ])
+    return people_ops
+
+
+def test_update_backend_pins_the_shared_agent_and_audits(backend_ops):
+    out = asyncio.run(ops.update_backend("C1", "kas"))
+    assert out == {"channel_id": "C1", "agent": "a", "acp_backend": "kas", "channels": ["C1", "C2"]}
+    assert backend_ops["cfg"]["agents"]["a"]["acp_backend"] == "kas"
+    assert "backend_update" in backend_ops["audit"]
+    asyncio.run(ops.update_backend("C1", None))
+    assert "acp_backend" not in backend_ops["cfg"]["agents"]["a"]
+
+
+def test_update_backend_refuses_unusable_values(backend_ops, monkeypatch):
+    for bad, msg in (("codex", "not installed"), ("bogus", "not allowed"), (3, "string or null")):
+        with pytest.raises(ValueError, match=msg):
+            asyncio.run(ops.update_backend("C1", bad))
+    with pytest.raises(ValueError, match="not onboarded"):
+        asyncio.run(ops.update_backend("C9", "kas"))
+    monkeypatch.setattr(ops, "_backend_field_supported", lambda: False)
+    with pytest.raises(ValueError, match="does not support"):
+        asyncio.run(ops.update_backend("C1", "kas"))
+    assert "acp_backend" not in backend_ops["cfg"]["agents"]["a"]
+
+
+def test_backend_support_hides_the_column_on_a_stock_gateway(monkeypatch):
+    monkeypatch.setattr(ops, "_backend_field_supported", lambda: False)
+    assert asyncio.run(ops.backend_support()) == {"supported": False, "options": [], "default": "", "refuses": False}
