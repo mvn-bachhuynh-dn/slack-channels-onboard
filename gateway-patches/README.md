@@ -30,12 +30,12 @@ The app detects every feature at runtime, by the function the gateway exposes
 
 | App feature | Sets | Upstream status |
 |---|---|---|
-| Members (`slack.allowed_users`, read-only) | K, M, M2, O, O2, O3 | local only |
-| Maintainers per channel (scoped write) | P, P3 | local only |
-| Approved commands per channel | P2 | local only |
-| Approved programs; owner asked in Slack | R, R2, R3 | local only |
-| Open channels (every channel member, read-only) | Q, Q2 | local only |
-| Workspace confinement for maintainer channels | T (+ `sets/patch-src/kc_confine.py`) | local only |
+| Members (`slack.allowed_users`, read-only) | K, M, M2, O, O2, O3 | proposed in kirodotdev/KiroCrew#22759 |
+| Maintainers per channel (scoped write) | P, P3 | proposed in kirodotdev/KiroCrew#22759 |
+| Approved commands per channel | P2 | proposed in kirodotdev/KiroCrew#22759 |
+| Approved programs; owner asked in Slack | R, R2, R3 | proposed in kirodotdev/KiroCrew#22759 |
+| Open channels (every channel member, read-only) | Q, Q2 | proposed in kirodotdev/KiroCrew#22759 |
+| Workspace confinement for maintainer channels | T (+ `sets/patch-src/kc_confine.py`) | proposed in kirodotdev/KiroCrew#22759 |
 | Agent backend per channel | U | issue kirodotdev/KiroCrew#21910, PR #16200 (open) |
 | (support) | L: no Slack stream without a recipient user | issue kirodotdev/KiroCrew#14625, closed upstream after 0.9.0 |
 | (support) | S: `KIROCREW_SLACK_TEAM_ID` in the agent env | PR kirodotdev/KiroCrew#22380 (open) |
