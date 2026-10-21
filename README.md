@@ -55,19 +55,27 @@ only those:
 The roles file is written atomically with mode 600. User IDs are checked against
 Slack (`users:read`), so bots and deactivated accounts are refused.
 
+These controls exist only on a gateway carrying the patch sets in
+[`gateway-patches/`](gateway-patches/README.md). Read that page before applying
+them: they change who may use the bot, target Kiro Crew 0.9.0, and must be
+re-applied after every Kiro Crew update.
+
 ## Agent backend per channel
 
 On a gateway that reads `agents.<name>.acp_backend` (upstream issue
 kirodotdev/KiroCrew#21910), the channel table gets an **Agent backend** column:
 the harness the channel's agent runs on (kiro, kas, claude, …). The column is
 hidden on a gateway without the field, detected the same way as the People
-controls.
+controls. Until upstream ships the field, Set U in
+[`gateway-patches/`](gateway-patches/README.md) adds it.
 
 - The pin lives on the **agent**, so every channel bound to that agent moves with
   it. *Gateway default* removes the pin (`agent.acp_backend` applies); *kiro*
   stores `""`.
 - Only a backend the gateway allows and that is installed on the host can be
-  picked. A change applies to **new** threads; a running thread keeps its harness.
+  picked. A change applies to **new** threads. A running thread keeps its harness
+  until its agent process restarts (a gateway restart, for one); it then starts a
+  fresh session on the new backend, without the old session's context.
 - Whether an unusable pin is refused (with the reason posted in the thread) or
   falls back to kiro-cli is the gateway's behaviour; the page says which.
 
