@@ -194,6 +194,12 @@ python -m pytest tests -q                                          # backend uni
 The UI is in English and switches to Vietnamese when the browser asks for it
 (`ui/src/i18n.ts`).
 
+## Contributing
+
+Issues and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md) and
+the [Code of Conduct](CODE_OF_CONDUCT.md). Report security problems privately as
+described in [SECURITY.md](SECURITY.md).
+
 ## License
 
-Apache-2.0
+[Apache-2.0](LICENSE)

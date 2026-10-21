@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/mvn-bachhuynh-dn/slack-channels-onboard/security/advisories/new
+    about: Report privately; please do not open a public issue.
+  - name: Kiro Crew itself (stock gateway behaviour)
+    url: https://github.com/kirodotdev/KiroCrew/issues
+    about: Bugs in Kiro Crew that do not involve this app or its patch sets.

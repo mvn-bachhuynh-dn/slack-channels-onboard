@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in the app or a gateway patch set does not work as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Found a security problem? Do not file it here: use **Security → Report a vulnerability** (see SECURITY.md).
+        Please remove real Slack ids, channel and person names, paths and tokens from anything you paste.
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: "`version` in app.json, or the release tag you installed."
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: kirocrew-version
+    attributes:
+      label: Kiro Crew version
+      description: "Output of `kirocrew --version`."
+      placeholder: "0.9.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How was the app installed?
+      options:
+        - App Store
+        - From a clone (kirocrew app install)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: patch-sets
+    attributes:
+      label: Gateway patch sets applied
+      description: "Which sets from gateway-patches/ are applied (e.g. `b,u`), or `none`."
+      placeholder: "b,u"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: "Lines mentioning `slack-channels-onboard` from `kirocrew logs`, with personal data removed."
+      render: text

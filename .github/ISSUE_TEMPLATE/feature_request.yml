@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest a change or a new capability.
+labels: ["enhancement"]
+body:
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Existing issues
+      options:
+        - label: I searched the open issues and this is not already requested.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you cannot do today, or do awkwardly. Describe the situation, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behaviour
+      description: What you would like to happen.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: needs-gateway
+    attributes:
+      label: Does it need a change to Kiro Crew itself?
+      description: Features that need a gateway change go through a patch set and an upstream issue.
+      options:
+        - "No, the app alone can do it"
+        - "Yes, or not sure"
