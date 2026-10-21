@@ -32,7 +32,7 @@ The app detects every feature at runtime, by the function the gateway exposes
 
 | App feature | Sets | Upstream status |
 |---|---|---|
-| **Channel turns use the agent and its workspace (core)** | B | not fixed upstream (the cron path was fixed in kirodotdev/KiroCrew#13422; the Slack chat path was not) |
+| **Channel turns use the agent and its workspace (core)** | B | reported in kirodotdev/KiroCrew#22763 (the cron path was fixed in #13422; the Slack chat path was not) |
 | Members (`slack.allowed_users`, read-only) | K, M, M2, O, O2, O3 | proposed in kirodotdev/KiroCrew#22759 |
 | Maintainers per channel (scoped write) | P, P3 | proposed in kirodotdev/KiroCrew#22759 |
 | Approved commands per channel | P2 | proposed in kirodotdev/KiroCrew#22759 |
