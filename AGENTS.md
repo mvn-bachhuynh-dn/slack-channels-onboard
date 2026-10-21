@@ -45,6 +45,23 @@ Bump `version` in `app.json` (semver) in the PR that changes behaviour.
   a `kiro_crew.slack` module has taken the gateway down before.
 - Every route calls `require_owner_dashboard_request`; every write is SEL-audited.
 
+## Gateway patches
+
+`gateway-patches/` holds the patch sets for the installed `kiro_crew` package
+that the optional features need (members, maintainers, open channels,
+confinement, per-agent backend). They are copies of the owner's local sets,
+published so users can decide for themselves.
+
+- Never add personal data: no real Slack ids, channel or person names, home
+  paths, hostnames or domains, in code or comments. Scan before committing.
+- Keep each set idempotent, anchor-checked, with a header that says what it
+  changes, why, the upstream issue/PR, and how to roll back.
+- Every script honours `KC_SITE_OVERRIDE`; prove a change by running
+  `apply.sh` against a pristine tree of the targeted tag
+  (`git archive v0.9.0 src/kiro_crew` from kirodotdev/KiroCrew).
+- When a set changes, update `gateway-patches/README.md` (feature map, upstream
+  status, tested version) in the same PR.
+
 ## Before you open a PR
 
 ```bash
