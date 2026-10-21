@@ -1,7 +1,8 @@
 /**
  * Slack Channels Onboard — one row per Slack channel the bot is in (or has a binding for).
  *
- * Configured rows: edit workspace directory, activation, thread_follow.
+ * Configured rows: edit workspace directory, activation, thread_follow, and the
+ * agent's backend (shown only when the gateway reads agents.<name>.acp_backend).
  * Unconfigured rows: one-click Onboard (workspace + agent + private memory + binding).
  * Settings: the background detector mode and defaults for new channels.
  *
@@ -27,6 +28,7 @@ interface Row {
   workspace?: string
   workspace_dir?: string
   memory_store?: string
+  acp_backend?: string | null
 }
 
 interface Settings {
@@ -39,8 +41,12 @@ interface Settings {
   poll_secs: number
 }
 
+interface BackendOption { id: string; label: string; installed: string }
+interface Backends { supported: boolean; options: BackendOption[]; default: string; refuses: boolean }
+
 interface ListResponse {
   channels: Row[]
+  backends?: Backends
   settings: Settings
   slack_error: string
 }
@@ -60,7 +66,52 @@ function Select({ value, options, onChange, label }: { value: string; options: r
   )
 }
 
-function ConfiguredRow({ row, open, canOpen, onSaved, onError }: { row: Row; open: boolean; canOpen: boolean; onSaved: () => void; onError: (m: string) => void }) {
+const INHERIT = '__inherit__'
+const backendName = (id: string) => id || 'kiro'
+
+function BackendSelect({ row, backends, hasMaintainers, onSaved, onError }: { row: Row; backends: Backends; hasMaintainers: boolean; onSaved: (msg: string) => void; onError: (m: string) => void }) {
+  const api = useAppApi()
+  const [busy, setBusy] = useState(false)
+  const current = row.acp_backend ?? null
+  const known = current === null || backends.options.some((o) => o.id === current)
+  const inheritLabel = t.backendInherit(backendName(backends.default))
+
+  const change = async (v: string) => {
+    const next = v === INHERIT ? null : v
+    const name = next === null ? inheritLabel : backendName(next)
+    const agent = row.agent || ''
+    if (!window.confirm(t.backendConfirm(agent, name, hasMaintainers && next !== null && next !== 'claude'))) return
+    setBusy(true)
+    try {
+      const r = await api.put<{ agent: string; channels: string[] }>(`${BASE}/backend`, { channel_id: row.id, acp_backend: next })
+      onSaved(t.backendSaved(r.agent, name, r.channels.filter((c) => c !== row.id).length))
+    } catch (e) {
+      onError(String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <select
+      aria-label={t.backendAria(row.agent || '')}
+      className="bg-[var(--bg-input,transparent)] border border-[var(--border)] rounded px-2 py-1 text-sm"
+      value={current === null ? INHERIT : current}
+      disabled={busy || !row.agent}
+      onChange={(e) => { void change(e.target.value) }}
+    >
+      <option value={INHERIT}>{inheritLabel}</option>
+      {backends.options.map((o) => (
+        <option key={o.id || 'kiro'} value={o.id} disabled={o.installed === 'missing'}>
+          {o.label}{o.installed === 'missing' ? t.backendMissing : ''}
+        </option>
+      ))}
+      {!known && current !== null && <option value={current}>{backendName(current)}{t.backendUnusable}</option>}
+    </select>
+  )
+}
+
+function ConfiguredRow({ row, open, canOpen, backends, hasMaintainers, onSaved, onNotice, onError }: { row: Row; open: boolean; canOpen: boolean; backends?: Backends; hasMaintainers: boolean; onSaved: () => void; onNotice: (msg: string) => void; onError: (m: string) => void }) {
   const api = useAppApi()
   const [dir, setDir] = useState(row.workspace_dir || '')
   const [activation, setActivation] = useState(row.activation || 'mention')
@@ -127,6 +178,11 @@ function ConfiguredRow({ row, open, canOpen, onSaved, onError }: { row: Row; ope
         <div className="font-mono text-sm whitespace-nowrap">{row.agent || t.defaultAgent}</div>
         <div className="text-xs text-muted">memory: {row.memory_store || '—'}</div>
       </td>
+      {backends?.supported && (
+        <td className="py-2 pr-3">
+          <BackendSelect row={row} backends={backends} hasMaintainers={hasMaintainers} onSaved={onNotice} onError={onError} />
+        </td>
+      )}
       <td className="py-2 pr-3 w-[38%] min-w-[320px]">
         <Input aria-label={t.workspaceOf(row.name || row.id)} title={dir} className="w-full font-mono text-xs" value={dir} onChange={(e) => setDir(e.target.value)} disabled={!row.agent} />
       </td>
@@ -471,6 +527,8 @@ export default function SlackChannelsOnboard() {
   const pending = data?.channels.filter((c) => !c.configured && c.bot_member && !c.id.startsWith('D')) ?? []
   const caps: Caps = people?.capabilities ?? NO_CAPS
   const openIds = new Set((people?.channels ?? []).filter((c) => c.open).map((c) => c.id))
+  const maintained = new Set((people?.channels ?? []).filter((c) => c.maintainers.length > 0).map((c) => c.id))
+  const backends = data?.backends
 
   return (
     <>
@@ -501,14 +559,20 @@ export default function SlackChannelsOnboard() {
         <Card>
           <CardTitle>{t.configuredTitle}</CardTitle>
           {caps.open_channel && <p className="text-xs text-muted mb-2">{t.openHelp}</p>}
+          {backends?.supported && <p className="text-xs text-muted mb-2">{t.backendHelp(backends.refuses)}</p>}
           <table className="w-full text-left text-sm">
             <thead><tr className="text-xs text-muted">
               <th className="pb-2 pr-3">{t.colChannel}</th><th className="pb-2 pr-3">{t.colAgent}</th>
+              {backends?.supported && <th className="pb-2 pr-3">{t.colBackend}</th>}
               <th className="pb-2 pr-3">{t.colWorkspace}</th><th className="pb-2 pr-3">{t.colActivation}</th>
               <th className="pb-2 pr-3">{t.colFollow}</th>{caps.open_channel && <th className="pb-2 pr-3">{t.colOpen}</th>}<th className="pb-2" />
             </tr></thead>
             <tbody>
-              {configured.map((r) => <ConfiguredRow key={`${r.id}:${r.workspace_dir}:${r.activation}:${r.thread_follow}:${openIds.has(r.id)}`} row={r} open={openIds.has(r.id)} canOpen={caps.open_channel} onSaved={load} onError={setError} />)}
+              {configured.map((r) => (
+                <ConfiguredRow key={`${r.id}:${r.workspace_dir}:${r.activation}:${r.thread_follow}:${openIds.has(r.id)}:${r.acp_backend ?? INHERIT}`}
+                  row={r} open={openIds.has(r.id)} canOpen={caps.open_channel} backends={backends} hasMaintainers={maintained.has(r.id)}
+                  onSaved={load} onNotice={saved} onError={setError} />
+              ))}
             </tbody>
           </table>
         </Card>

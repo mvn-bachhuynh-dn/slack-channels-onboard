@@ -1,6 +1,6 @@
 {
   "name": "slack-channels-onboard",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "Slack Channels Onboard",
   "description": "Give every Slack channel its own Kiro Crew agent, workspace and private memory. Detects channels the bot was added to, onboards them automatically or in one click, and lets you re-point the workspace, activation and thread follow from the dashboard.",
   "author": "mvn-bachhuynh-dn",

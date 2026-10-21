@@ -519,6 +519,98 @@ async def people() -> dict:
     return view
 
 
+# ------------------------------------------------- agent backend (slice 5)
+
+
+def _backend_field_supported() -> bool:
+    """Whether the running gateway reads ``agents.<name>.acp_backend``.
+
+    True on a gateway patched with Set U and on an upstream release that ships
+    the field; False on a stock 0.9.0, where writing the key would be silently
+    dropped on the next config save.
+    """
+    try:
+        from kiro_crew.config.sections import KiroCrewAgentConfig
+
+        return "acp_backend" in getattr(KiroCrewAgentConfig, "__dataclass_fields__", {})
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _backend_refuses() -> bool:
+    """Whether an unusable pin refuses the session (Set U) rather than degrading
+    to kiro-cli (upstream PR #16200's behaviour)."""
+    try:
+        from kiro_crew import members
+
+        return hasattr(members, "CrewBackendRefused")
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _backend_options_sync() -> list[dict]:
+    """Backends the gateway allows, each with its machine-local install state."""
+    from kiro_crew.acp_backends import selectable_backends
+
+    installed: dict[str, str] = {}
+    try:
+        from kiro_crew.agent_sdk.backend_install import probe_backends
+
+        installed = {s.backend: s.installed for s in probe_backends()}
+    except Exception:  # noqa: BLE001 - no probe: show every backend as unknown
+        logger.warning("slack-channels-onboard: backend install probe failed", exc_info=True)
+    return [
+        {"id": b, "label": b or "kiro", "installed": installed.get(b, "unknown")}
+        for b in sorted(selectable_backends(), key=lambda b: (b != "", b))
+    ]
+
+
+async def backend_support() -> dict:
+    """What the page needs for the Agent backend column."""
+    if not _backend_field_supported():
+        return {"supported": False, "options": [], "default": "", "refuses": False}
+    cfg = config_dict()
+    default = ((cfg.get("agent", {}) or {}).get("acp_backend")) or ""
+    try:
+        options = await asyncio.to_thread(_backend_options_sync)
+    except Exception:  # noqa: BLE001
+        logger.warning("slack-channels-onboard: listing backends failed", exc_info=True)
+        return {"supported": False, "options": [], "default": default, "refuses": False}
+    return {"supported": True, "options": options, "default": default, "refuses": _backend_refuses()}
+
+
+async def update_backend(channel_id: str, backend: Any) -> dict:
+    """Pin (or un-pin, ``None``) the backend of the agent bound to *channel_id*.
+
+    The pin lives on the AGENT, so every channel bound to the same agent moves
+    with it; the response names them. Only a backend the gateway allows AND that
+    is installed can be pinned: the gateway refuses a session on any other.
+    """
+    if not _backend_field_supported():
+        raise ValueError("this gateway does not support a per-agent backend yet")
+    if backend is not None and not isinstance(backend, str):
+        raise ValueError("backend must be a string or null")
+    cfg = config_dict()
+    binding = ((cfg.get("slack", {}) or {}).get("channels", {}) or {}).get(channel_id)
+    if binding is None:
+        raise ValueError(f"channel {channel_id} is not onboarded")
+    agent_name = binding.get("agent", "")
+    if not agent_name or agent_name not in (cfg.get("agents", {}) or {}):
+        raise ValueError("channel is not bound to an agent; cannot pin its backend")
+    if backend is not None:
+        options = {o["id"]: o for o in await asyncio.to_thread(_backend_options_sync)}
+        if backend not in options:
+            raise ValueError(f"backend {backend!r} is not allowed by this gateway")
+        if options[backend]["installed"] == "missing":
+            raise ValueError(f"backend {options[backend]['label']!r} is not installed on the gateway host")
+    await _write(lambda d: core.set_agent_backend(d, agent_name, backend))
+    shared = core.channels_for_agent(cfg, agent_name)
+    shown = "inherit" if backend is None else (backend or "kiro")
+    _audit("backend_update", f"agent={agent_name} backend={shown} channels={','.join(shared)}")
+    logger.info("slack-channels-onboard: agent %s acp_backend=%s", agent_name, shown)
+    return {"channel_id": channel_id, "agent": agent_name, "acp_backend": backend, "channels": shared}
+
+
 def access_capabilities() -> dict:
     """Which per-user access controls the RUNNING gateway actually enforces.
 

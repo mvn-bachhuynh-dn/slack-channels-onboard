@@ -48,6 +48,22 @@ only those:
 The roles file is written atomically with mode 600. User IDs are checked against
 Slack (`users:read`), so bots and deactivated accounts are refused.
 
+## Agent backend per channel
+
+On a gateway that reads `agents.<name>.acp_backend` (upstream issue
+kirodotdev/KiroCrew#21910), the channel table gets an **Agent backend** column:
+the harness the channel's agent runs on (kiro, kas, claude, …). The column is
+hidden on a gateway without the field, detected the same way as the People
+controls.
+
+- The pin lives on the **agent**, so every channel bound to that agent moves with
+  it. *Gateway default* removes the pin (`agent.acp_backend` applies); *kiro*
+  stores `""`.
+- Only a backend the gateway allows and that is installed on the host can be
+  picked. A change applies to **new** threads; a running thread keeps its harness.
+- Whether an unusable pin is refused (with the reason posted in the thread) or
+  falls back to kiro-cli is the gateway's behaviour; the page says which.
+
 ## How it writes
 
 The backend runs as in-gateway hooks (`backend.hooks`), not a separate process,
