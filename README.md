@@ -111,6 +111,62 @@ or returned.
 
 ## Install
 
+### With your AI assistant
+
+Paste this into Claude Code, Kiro, Cursor or any coding agent that can run
+shell commands on the machine where your Kiro Crew gateway runs. It checks your
+setup, explains each change, and asks before anything that changes access or
+restarts the gateway.
+
+```text
+Install the Kiro Crew app "Slack Channels Onboard" on this machine for me.
+Repository: https://github.com/mvn-bachhuynh-dn/slack-channels-onboard (use the
+latest release tag, not main). Reply in my language. Work step by step and stop
+to ask me wherever a step says ASK.
+
+1. Check: `kirocrew --version`, that the gateway is running, and that Slack is
+   connected. Note how Kiro Crew is installed (pipx or not) and where its
+   `kiro_crew` package lives (ask the kirocrew interpreter, e.g.
+   `python -c "import kiro_crew, os; print(os.path.dirname(kiro_crew.__file__))"`
+   with the venv's python).
+2. Clone the repo at the latest release tag into a folder outside any project
+   (e.g. ~/kirocrew-apps/). Read README.md and gateway-patches/README.md, then
+   give me a short summary of what the app does and what it needs.
+3. Third-party app code: check `agent.apps_allow_third_party`. If it is not
+   true, explain that this app runs Python inside the gateway and ASK before
+   setting it with `kirocrew config set agent.apps_allow_third_party true`.
+4. Set B (required on Kiro Crew 0.9.0, or channel turns ignore the app's
+   bindings): explain what it patches and that it must be re-applied after every
+   Kiro Crew update, then ASK. If yes, run
+   `bash gateway-patches/apply.sh --only b` (prefix `KC_SITE_OVERRIDE=<path to
+   kiro_crew>` if Kiro Crew is not a pipx install). If the version is not 0.9.0,
+   say the patches are untested there and ASK before trying. Stop on any
+   "CHECK ANCHORS" or "!!" line and show it to me.
+5. Optional features: list them from the table in gateway-patches/README.md
+   (agent backend per channel; members; maintainers, open channels, owner
+   approvals; workspace confinement) with one line on what each changes, and
+   ASK which I want. Never apply the access-control sets without an explicit yes.
+   Apply only the chosen ones with `apply.sh --only <sets>`, using the tested
+   combinations listed there. Confinement also needs `bwrap` installed.
+6. Install and enable: `kirocrew app install <clone dir>` then
+   `kirocrew app enable slack-channels-onboard`. If it is already installed,
+   tell me to update it from the dashboard (Apps → Slack Channels Onboard →
+   Update) instead.
+7. ASK, then restart the gateway with `kirocrew restart` (it handles a gateway
+   that runs as a service).
+8. Verify: `kirocrew logs` shows no slack-channels-onboard error, and the
+   dashboard has a "Slack Channels Onboard" page. Remind me to check the Slack
+   bot scopes listed in the README, and to test by asking the bot `pwd` in an
+   onboarded channel: it should answer with that channel's workspace directory.
+9. Finish with what you changed, where the backups are (`*.bak-set*` files next
+   to each patched file), and how to undo it.
+
+Never print tokens or secrets, and do not hand-edit config.json when a
+`kirocrew` command can make the change.
+```
+
+### By hand
+
 From the App Store (Apps → Discover), or from a local clone:
 
 ```bash
