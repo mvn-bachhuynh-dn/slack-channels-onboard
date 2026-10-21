@@ -84,6 +84,7 @@ def _slack_call(method: str, params: dict[str, Any], *, post: bool = False) -> d
     else:
         query = urllib.parse.urlencode(params)
         req = urllib.request.Request(f"{_SLACK_API}{method}?{query}", headers=headers)
+    # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- the URL is always the fixed https://slack.com/api/ prefix plus a Slack method name chosen in this module; no caller input reaches the scheme or host, so file:// is unreachable  # noqa: E501
     with urllib.request.urlopen(req, timeout=20) as resp:  # noqa: S310 - fixed https host
         body = json.loads(resp.read().decode("utf-8"))
     if not body.get("ok"):
