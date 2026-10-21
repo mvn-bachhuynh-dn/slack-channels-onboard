@@ -99,6 +99,10 @@ or returned.
 ## Requirements
 
 - Kiro Crew **0.9.0** or newer, with Slack connected.
+- On Kiro Crew 0.9.0, gateway patch **Set B** so a channel turn actually runs as
+  the channel's agent in its workspace: `bash gateway-patches/apply.sh --only b`,
+  then restart. Without it the app still writes the bindings, but Slack turns
+  ignore them. See [`gateway-patches/`](gateway-patches/README.md).
 - Slack bot scopes: `channels:read`, `groups:read`, `users:read`, `chat:write`
   (DMs to the owner) and `im:write`.
 - This app runs Python inside the gateway, so the operator must allow third-party

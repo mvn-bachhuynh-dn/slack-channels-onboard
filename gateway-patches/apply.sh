@@ -4,6 +4,7 @@
 # Usage:
 #   bash gateway-patches/apply.sh            # apply every set, in order
 #   bash gateway-patches/apply.sh --list     # show the sets and exit
+#   bash gateway-patches/apply.sh --only b,u # only these sets (still in order)
 #   KC_SITE_OVERRIDE=/path/to/site-packages/kiro_crew bash gateway-patches/apply.sh
 #
 # Each set is idempotent (a marker makes a re-run a no-op), checks its anchors
@@ -19,8 +20,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # Order matters: later sets anchor on text earlier sets wrote.
 SETS=(
+  b   # route a channel's agent alias to its kiro agent + workspace (core onboarding)
   k   # multi-user allowlist (members)
-  l   # no Slack stream for a turn without a recipient user
   m   # DMs are owner-only
   o   # members are read-only
   m2  # DM owner-only, enforced in events
@@ -38,6 +39,17 @@ SETS=(
   t   # OS confinement (bwrap) for maintainer channels
   u   # per-agent ACP backend pin (agents.<name>.acp_backend)
 )
+
+if [ "${1:-}" = "--only" ]; then
+  [ -n "${2:-}" ] || { echo "usage: apply.sh --only b,u"; exit 2; }
+  wanted=",${2},"
+  picked=()
+  for s in "${SETS[@]}"; do [[ "$wanted" == *",$s,"* ]] && picked+=("$s"); done
+  for w in ${2//,/ }; do
+    printf '%s\n' "${SETS[@]}" | grep -qx "$w" || { echo "!! unknown set: $w"; exit 2; }
+  done
+  SETS=("${picked[@]}")
+fi
 
 if [ "${1:-}" = "--list" ]; then
   for s in "${SETS[@]}"; do ls "$HERE"/sets/repatch-set-"$s"-*.sh | xargs -n1 basename; done
