@@ -28,7 +28,11 @@ own. So:
    ask for an upstream review of the exact `main` commit, and only after it is
    approved run `git push origin <reviewed-sha>:release` (fast-forward; never
    `--force`).
-3. A commit pushed to a feature branch after its PR merged is lost unless it gets
+3. Both branches are protected on GitHub, admins included: `main` needs a pull
+   request and the four CI checks green, `release` only accepts a fast-forward
+   to a commit whose four CI checks are green (so it cannot point at a commit
+   from before CI existed), and neither can be force-pushed or deleted.
+4. A commit pushed to a feature branch after its PR merged is lost unless it gets
    its own PR. Check `gh pr view <n> --json state` before pushing to a PR branch.
 
 Commit messages follow Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:` …).
