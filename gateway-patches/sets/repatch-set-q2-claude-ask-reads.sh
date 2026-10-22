@@ -67,4 +67,4 @@ journalctl -u kirocrew --since "-2d" --no-pager 2>/dev/null \
       else
         echo "   WARN $f — no ask rule; rename it so Crew seeds it, or add permissions.ask"
       fi
-    done
+    done || true  # advisory only: no gateway journal (fresh host, CI) is not a failure
