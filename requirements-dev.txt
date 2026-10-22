@@ -1,0 +1,4 @@
+# Test dependencies. The app itself runs inside the Kiro Crew gateway and uses
+# the gateway's own packages; aiohttp matches its constraint.
+aiohttp>=3.9,<4
+pytest>=8

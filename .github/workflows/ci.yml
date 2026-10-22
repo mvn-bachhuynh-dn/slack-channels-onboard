@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, release]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Backend tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests -q
+
+  ui:
+    name: UI build matches ui/dist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - run: npm ci
+        working-directory: ui
+      - run: npm run build
+        working-directory: ui
+      - name: Committed ui/dist is up to date
+        run: |
+          if ! git diff --quiet -- ui/dist; then
+            echo "::error::ui/dist does not match ui/src. Run 'cd ui && npm ci && npm run build' and commit ui/dist."
+            git diff --stat -- ui/dist
+            exit 1
+          fi
+
+  gateway-patches:
+    name: Gateway patches apply to Kiro Crew ${{ matrix.kirocrew }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        kirocrew: ["v0.9.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Fetch Kiro Crew ${{ matrix.kirocrew }}
+        run: git clone --depth 1 --branch "${{ matrix.kirocrew }}" https://github.com/kirodotdev/KiroCrew.git "$RUNNER_TEMP/kirocrew"
+      - name: Install it where the patch scripts look (the pipx venv path)
+        run: |
+          venv="$HOME/.local/share/pipx/venvs/kirocrew"
+          python -m venv "$venv"
+          "$venv/bin/pip" install -q "$RUNNER_TEMP/kirocrew"
+          site=$("$venv/bin/python" -c "import kiro_crew, os; print(os.path.dirname(kiro_crew.__file__))")
+          echo "KC_SITE=$site" >> "$GITHUB_ENV"
+      - name: Apply each documented combination to a pristine tree, twice
+        run: |
+          pristine="$RUNNER_TEMP/kirocrew/src/kiro_crew"
+          fail=0
+          # The combinations gateway-patches/README.md documents; "all" = every set.
+          for combo in b b,u b,k,m,o,m2,o2,o3 b,k,m,o,m2,o2,o3,p,p2,p3,q,q2,r,r2,r3 all; do
+            rm -rf "$KC_SITE" && cp -r "$pristine" "$KC_SITE"
+            args=(); [ "$combo" = all ] || args=(--only "$combo")
+            for run in first rerun; do
+              out=$(bash gateway-patches/apply.sh "${args[@]}" 2>&1) && rc=0 || rc=$?
+              if [ $rc -ne 0 ] || grep -qE "CHECK ANCHORS|^!!|FAILED" <<<"$out" \
+                 || ! grep -q "All sets applied" <<<"$out"; then
+                echo "::error::apply.sh ${args[*]:-(all)} failed on the $run run"
+                echo "$out"
+                fail=1
+              else
+                echo "ok: ${combo} (${run})"
+              fi
+            done
+          done
+          exit $fail

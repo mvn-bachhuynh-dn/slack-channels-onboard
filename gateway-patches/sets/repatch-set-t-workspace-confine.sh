@@ -144,7 +144,9 @@ rc=$?; [ $rc -eq 0 ] || exit $rc
 "$VENV_PY" - <<'PY' || { echo "Set T: PROVE FAILED"; exit 1; }
 import os, subprocess, json, pathlib
 from kiro_crew import _kc_confine as k
-roles = json.loads((k.CREW / "channel-roles.json").read_text()).get("channels", {})
+_rp = k.CREW / "channel-roles.json"
+# No roles file yet (no maintainer configured) is a normal install: nothing to prove.
+roles = json.loads(_rp.read_text()).get("channels", {}) if _rp.exists() else {}
 chans = [c for c in roles if k.channel_workspace(c)]
 if not chans or not os.access(k.BWRAP, os.X_OK):
     print("Set T: prove skipped (no confined channel or no bwrap)"); raise SystemExit(0)
