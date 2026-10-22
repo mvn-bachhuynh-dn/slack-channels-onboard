@@ -19,6 +19,7 @@ You need Python 3.10+, Node.js 18+ and a Kiro Crew 0.9.0 gateway to try changes
 on.
 
 ```bash
+pip install -r requirements-dev.txt               # aiohttp + pytest
 python -m pytest tests -q                         # backend tests (no gateway needed)
 cd ui && npm ci && npm run build && rm -rf node_modules && cd ..
 ```
@@ -43,6 +44,10 @@ cd ui && npm ci && npm run build && rm -rf node_modules && cd ..
 - Add or update tests for what you change; `python -m pytest tests -q` must pass.
 - Never include real Slack ids, channel or person names, home paths, hostnames,
   tokens or other personal data, in code, comments, tests or screenshots.
+
+CI runs on every pull request: the backend tests on Python 3.10 and 3.12, a
+check that `ui/dist/` matches a fresh build, and every documented
+`gateway-patches` combination applied twice to a pristine Kiro Crew 0.9.0.
 
 `main` moves only through pull requests. The App Store installs the `release`
 branch, which only advances to a `main` commit after a Kiro Crew maintainer has

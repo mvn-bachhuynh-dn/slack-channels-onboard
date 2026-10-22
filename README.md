@@ -188,6 +188,7 @@ kirocrew app enable slack-channels-onboard
 
 ```bash
 cd ui && npm ci && npm run build && rm -rf node_modules && cd ..   # ui/dist is committed
+pip install -r requirements-dev.txt                                # aiohttp + pytest
 python -m pytest tests -q                                          # backend unit tests, no gateway needed
 ```
 
