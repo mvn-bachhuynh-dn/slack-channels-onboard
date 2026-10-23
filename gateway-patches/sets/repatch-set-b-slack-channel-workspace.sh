@@ -15,6 +15,9 @@
 # from the live config, and both get_or_create call sites pass the kiro agent
 # and cwd=<workspace dir>. A name that is not an alias passes through unchanged.
 #
+# Upstream: kirodotdev/KiroCrew#22763, fixed by #22858 (merged after 0.9.0); the
+# script no-ops on a release that carries resolve_channel_crew.
+#
 # Idempotent (markers: _agent_workspace_binding, _dispatch_agent). Anchors are
 # checked; a mismatch prints CHECK ANCHORS and exits 1. Rollback: restore the
 # *.bak-setb-<stamp> files, clear __pycache__, restart.
@@ -28,6 +31,12 @@ python3 - "$SITE" "$STAMP" <<'PY'
 import re, shutil, sys, pathlib
 site = pathlib.Path(sys.argv[1])
 stamp = sys.argv[2]
+# Upstream fixed this in kirodotdev/KiroCrew#22858 (merged after 0.9.0): the
+# chat paths resolve the channel's crew through slack/channel_crew.py. On a
+# release that carries it this Set is redundant and its anchors may be gone.
+if "resolve_channel_crew" in (site / "slack/transport_dispatch.py").read_text():
+    print("Set B (slack channel workspace): fixed upstream (#22858) in installed release — no-op")
+    sys.exit(0)
 for _f in ("slack/transport_dispatch.py", "slack/handler.py"):
     _p = site / _f
     _b = _p.with_name(_p.name + f".bak-setb-{stamp}")
