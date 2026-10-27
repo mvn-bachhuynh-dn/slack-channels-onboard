@@ -57,7 +57,7 @@ Slack (`users:read`), so bots and deactivated accounts are refused.
 
 These controls exist only on a gateway carrying the patch sets in
 [`gateway-patches/`](gateway-patches/README.md). Read that page before applying
-them: they change who may use the bot, target Kiro Crew 0.9.0, and must be
+them: they change who may use the bot, target Kiro Crew 0.9.0 and 0.10.0, and must be
 re-applied after every Kiro Crew update.
 
 ## Agent backend per channel
@@ -99,11 +99,11 @@ or returned.
 ## Requirements
 
 - Kiro Crew **0.9.0** or newer, with Slack connected.
-- On Kiro Crew 0.9.0, gateway patch **Set B** so a channel turn actually runs as
+- On Kiro Crew 0.9.0 and 0.10.0, gateway patch **Set B** so a channel turn actually runs as
   the channel's agent in its workspace: `bash gateway-patches/apply.sh --only b`,
   then restart. Without it the app still writes the bindings, but Slack turns
   ignore them. See [`gateway-patches/`](gateway-patches/README.md). Fixed upstream
-  by kirodotdev/KiroCrew#22858, so a Kiro Crew release after 0.9.0 will not need it.
+  by kirodotdev/KiroCrew#22858, so the first Kiro Crew release that carries it will not need it.
 - Slack bot scopes: `channels:read`, `groups:read`, `users:read`, `chat:write`
   (DMs to the owner) and `im:write`.
 - This app runs Python inside the gateway, so the operator must allow third-party
@@ -136,7 +136,7 @@ to ask me wherever a step says ASK.
 3. Third-party app code: check `agent.apps_allow_third_party`. If it is not
    true, explain that this app runs Python inside the gateway and ASK before
    setting it with `kirocrew config set agent.apps_allow_third_party true`.
-4. Set B (required on Kiro Crew 0.9.0, or channel turns ignore the app's
+4. Set B (required on Kiro Crew 0.9.0 and 0.10.0, or channel turns ignore the app's
    bindings): explain what it patches and that it must be re-applied after every
    Kiro Crew update, then ASK. If yes, run
    `bash gateway-patches/apply.sh --only b` (prefix `KC_SITE_OVERRIDE=<path to

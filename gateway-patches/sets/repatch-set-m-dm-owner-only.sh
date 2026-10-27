@@ -4,7 +4,7 @@
 #
 # PROBLEM: the allow-list (Set K) grants "may chat with the bot" GLOBALLY — it
 # does not distinguish a message sent in an approved CHANNEL from a private
-# Direct Message. So an allow-listed non-owner could DM the bot
+# Direct Message. So an allow-listed non-owner (e.g. Anh Dao) could DM the bot
 # directly, outside any channel the operator added them to. That is a privilege
 # the operator never intended to grant.
 #

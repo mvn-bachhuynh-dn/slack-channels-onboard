@@ -25,6 +25,8 @@
 #   - slack/transport_dispatch.py        maintainer fast-path in _tool_gate
 #   - providers/acp.py                   pin channel on the kiro-cli/KAS AcpRuntime before spawn
 #   - slack/interactions.py              maintainer OPTIONS click (confined channel) = typed message
+#   - slack/transport_dispatch.py        owner threads (_kc_owner_thread_v1): a thread the owner
+#                                        opens runs unconfined and is owner-only
 # Rollback: restore the *.bak-sett-<stamp> files next to each edited file,
 # delete _kc_confine.py, clear pyc, restart.
 # ============================================================================
@@ -113,23 +115,69 @@ edit(site / "slack/interactions.py", IA, """    # Set T (_kc_workspace_confine_v
 
 # kiro-cli / KAS: the shared AcpRuntime is the launch host and knows no channel;
 # pin it before each of its two spawns so maybe_confine can resolve the workspace.
-PA = site / "providers/acp.py"
+# 0.10.0 moved the kiro start path into providers/acp_runtime_start.py as module
+# functions taking ``self`` (one indent level less); 0.9.0 has it in providers/acp.py.
+PA = site / "providers/acp_runtime_start.py"
+_d = ""
+if not PA.exists() or "await runtime.spawn(" not in PA.read_text():
+    PA, _d = site / "providers/acp.py", "    "
 ps = PA.read_text()
 if MARK not in ps:
-    A1 = """        _t_spawn = time.monotonic()
-        try:
-            await runtime.spawn(
+    A1 = f"""{_d}    _t_spawn = time.monotonic()
+{_d}    try:
+{_d}        await runtime.spawn(
 """
-    A2 = """                    try:
-                        await runtime.spawn(
+    A2 = f"""{_d}                try:
+{_d}                    await runtime.spawn(
 """
     if ps.count(A1) != 1 or ps.count(A2) != 1:
-        print("Set T: FAIL anchor for kiro runtime spawn in providers/acp.py — re-derive"); sys.exit(1)
+        print(f"Set T: FAIL anchor for kiro runtime spawn in {PA.relative_to(site)} — re-derive"); sys.exit(1)
     shutil.copy2(PA, PA.with_name(PA.name + f".bak-sett-{stamp}"))
     PIN = "{i}runtime._channel_id = getattr(self._client, \"_channel_id\", None)  # Set T (_kc_workspace_confine_v1)\n{i}self._kc_runtime = runtime\n"
-    ps = ps.replace(A1, "        _t_spawn = time.monotonic()\n" + PIN.format(i="        ") + "        try:\n            await runtime.spawn(\n")
-    ps = ps.replace(A2, PIN.format(i="                    ") + A2)
+    ps = ps.replace(A1, f"{_d}    _t_spawn = time.monotonic()\n" + PIN.format(i=_d + "    ") + f"{_d}    try:\n{_d}        await runtime.spawn(\n")
+    ps = ps.replace(A2, PIN.format(i=_d + "                ") + A2)
     PA.write_text(ps); changed.append(PA)
+
+# Owner threads (_kc_owner_thread_v1): record each confined-channel thread's mode
+# on arrival and refuse a non-owner in a thread the owner opened (it runs unconfined).
+TD = site / "slack/transport_dispatch.py"
+ts_ = TD.read_text()
+OM = "_kc_owner_thread_v1"
+if OM not in ts_:
+    OA = "    linked_session_key: str | None = None\n"
+    if ts_.count(OA) != 1:
+        print("Set T: FAIL anchor for owner thread in slack/transport_dispatch.py — re-derive"); sys.exit(1)
+    shutil.copy2(TD, TD.with_name(TD.name + f".bak-sett-{stamp}"))
+    TD.write_text(ts_.replace(OA, """    # Set T (_kc_owner_thread_v1): a thread the owner opened in a confined channel runs
+    # unconfined, so nobody else may post in it (kiro_crew/_kc_confine.py).
+    from kiro_crew import _kc_confine as _kc_cf
+    from kiro_crew.slack.handler import is_owner as _kc_is_owner_t
+
+    _kc_refuse = _kc_cf.note_thread_sender(channel, reply_ts, msg_ts, _kc_is_owner_t(user_id))
+    if _kc_refuse:
+        await slack.post_message(channel, _kc_refuse, post_thread_ts)
+        return
+""" + OA))
+    changed.append(TD)
+# Same guard on the native path (review-mode channels, messaging.use_transport=false).
+HD = site / "slack/handler.py"
+hs = HD.read_text()
+if OM not in hs:
+    HA = ("    # conversation log, and the per-thread override maps across two keys.\n"
+          "    reply_ts = thread_ts or msg_ts\n    session_key = canonical_key(reply_ts)\n")
+    if hs.count(HA) != 1:
+        print("Set T: FAIL anchor for owner thread in slack/handler.py — re-derive"); sys.exit(1)
+    shutil.copy2(HD, HD.with_name(HD.name + f".bak-sett-{stamp}"))
+    HD.write_text(hs.replace(HA, HA + """
+    # Set T (_kc_owner_thread_v1): see slack/transport_dispatch.py.
+    from kiro_crew import _kc_confine as _kc_cf
+
+    _kc_refuse = _kc_cf.note_thread_sender(channel, reply_ts, msg_ts, is_owner(user_id))
+    if _kc_refuse:
+        await slack.post_message(channel, _kc_refuse, reply_ts)
+        return
+"""))
+    changed.append(HD)
 
 for f in changed:
     if f.suffix == ".py":
@@ -153,7 +201,7 @@ if not chans or not os.access(k.BWRAP, os.X_OK):
 name, root = k.channel_workspace(chans[0])
 home = k.private_home(name)
 probe = (f"test -e {k.HOME}/.kiro/crew/.env && echo LEAK_ENV; test -e {k.HOME}/.ssh && echo LEAK_SSH; "
-         f"ls {k.HOME}/Projects; touch {k.HOME}/.local/bin/.kc && echo LEAK_W; "
+         f"ls {k.HOME}/Projects; touch {k.HOME}/.local/bin/.kc && echo LEAK_W; mkdir {k.HOME}/Projects/.kc_sib 2>/dev/null && echo LEAK_SIBLING; "
          f"docker ps >/dev/null 2>&1 && echo LEAK_DOCKER; sudo -n true 2>/dev/null && echo LEAK_SUDO; "
          f"touch {root}/.kc_t && rm {root}/.kc_t && echo WS_OK")
 out = subprocess.run(k.bwrap_argv(["/bin/sh", "-c", probe], root, home, root),

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Set P3 — maintainer FILE OPS + listing (2026-10-20, after a maintainer's rm was denied).
+# Set P3 — maintainer FILE OPS + listing (2026-10-20, after Jane's rm was denied).
 #
 # Extends Set P/P2. Built-in for every channel maintainer (no "commands" entry
 # needed), auto-approved, only inside the channel workspace:
