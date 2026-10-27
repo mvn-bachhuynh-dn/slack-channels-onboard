@@ -92,8 +92,12 @@ s = s.rstrip("\n") + "\n\n\n" + (
     "        getattr(event, \"mcp_identity_trusted\", False)\n"
     "        or getattr(event, \"tool_identity_trusted\", False)\n"
     "    ):\n"
-    "        from kiro_crew.slack.gateway import HEARTBEAT_SAFE_TOOLS as _kc_safe\n"
+    "        try:\n"
+    "            from kiro_crew.slack.gateway import HEARTBEAT_SAFE_TOOLS as _kc_safe\n"
+    "        except ImportError:  # 0.10.0+: identity-based (@server/tool) check upstream\n"
+    "            from kiro_crew.slack.gateway_runtime.tool_policy import _is_heartbeat_safe_tool as _kc_hb\n"
     "\n"
+    "            return _kc_hb(event)\n"
     "        return name in _kc_safe\n"
     "    return False\n"
 )
@@ -104,6 +108,9 @@ rc=$?; [ $rc -eq 0 ] || exit $rc
 
 PYBIN="${VENV_PY:-python3}"
 "$PYBIN" -m py_compile "$TD" && echo "Set O2: compile OK" || { echo "Set O2: compile FAILED"; exit 1; }
-"$PYBIN" -c "import kiro_crew.slack.gateway, kiro_crew.slack.transport_dispatch" 2>&1 \
-  | grep -E "Error|Traceback" && { echo "Set O2: IMPORT FAILED — do not restart"; exit 1; } \
-  || echo "Set O2: import OK"
+# Exit status, not grep: under pipefail the old "| grep && fail || ok" printed OK on a failed import.
+if _kc_out=$("$PYBIN" -c "import kiro_crew.slack.gateway, kiro_crew.slack.transport_dispatch" 2>&1); then
+  echo "Set O2: import OK"
+else
+  echo "$_kc_out" | tail -3; echo "Set O2: IMPORT FAILED — do not restart"; exit 1
+fi

@@ -32,18 +32,26 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 import sys, pathlib, shutil, py_compile
 site, stamp = pathlib.Path(sys.argv[1]), sys.argv[2]
 MARK = "_kc_claude_ask_reads_v1"
-p = site / "acp/client.py"
+# 0.10.0 moved the seed renderer into acp/client_claude_seed.py (module-level,
+# 4-space indent); 0.9.0 has it as an AcpClient method in acp/client.py.
+p = site / "acp/client_claude_seed.py"
+if not p.exists():
+    p = site / "acp/client.py"
 s = p.read_text()
 if MARK in s:
     print("Set Q2: already applied — no-op")
 else:
-    OLD = "        if perms:\n            data[\"permissions\"] = perms\n"
-    NEW = (
-        f"        # Set Q2 ({MARK}): read-only tools must reach Crew's gate (Set Q scopes non-owner reads).\n"
-        "        perms[\"ask\"] = sorted(set(perms.get(\"ask\") or []) | {\"Read\", \"Grep\", \"Glob\"})\n"
-        + OLD
-    )
-    if s.count(OLD) != 1:
+    OLD = NEW = ""
+    for i in ("        ", "    "):
+        OLD = f"{i}if perms:\n{i}    data[\"permissions\"] = perms\n"
+        if s.count(OLD) == 1:
+            NEW = (
+                f"{i}# Set Q2 ({MARK}): read-only tools must reach Crew's gate (Set Q scopes non-owner reads).\n"
+                f"{i}perms[\"ask\"] = sorted(set(perms.get(\"ask\") or []) | {{\"Read\", \"Grep\", \"Glob\"}})\n"
+                + OLD
+            )
+            break
+    if not NEW:
         print(f"Set Q2: FAIL anchor count={s.count(OLD)} — re-derive"); sys.exit(1)
     s = s.replace(OLD, NEW)
     shutil.copy2(p, p.with_name(p.name + f".bak-setq2-{stamp}"))
@@ -51,9 +59,9 @@ else:
     py_compile.compile(str(p), doraise=True)
     for pyc in (p.parent / "__pycache__").glob(p.stem + ".*.pyc"):
         pyc.unlink()
-    print("Set Q2: patched acp/client.py")
+    print(f"Set Q2: patched {p.relative_to(site)}")
 import importlib, inspect
-C = importlib.import_module("kiro_crew.acp.client")
+C = importlib.import_module("kiro_crew.acp." + p.stem)
 assert MARK in inspect.getsource(C)
 print("Set Q2: OK")
 PY

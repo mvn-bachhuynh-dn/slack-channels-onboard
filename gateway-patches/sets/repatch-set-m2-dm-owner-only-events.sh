@@ -54,6 +54,9 @@ rc=$?; [ $rc -eq 0 ] || exit $rc
 PYBIN="${VENV_PY:-python3}"
 "$PYBIN" -m py_compile "$EV" && echo "Set M2: compile OK" || { echo "Set M2: compile FAILED"; exit 1; }
 # Import check: a broken import here takes the whole gateway down on restart.
-"$PYBIN" -c "import kiro_crew.slack.gateway, kiro_crew.slack.events" 2>&1 \
-  | grep -E "Error|Traceback" && { echo "Set M2: IMPORT FAILED — do not restart"; exit 1; } \
-  || echo "Set M2: import OK"
+# Exit status, not grep: under pipefail the old "| grep && fail || ok" printed OK on a failed import.
+if _kc_out=$("$PYBIN" -c "import kiro_crew.slack.gateway, kiro_crew.slack.events" 2>&1); then
+  echo "Set M2: import OK"
+else
+  echo "$_kc_out" | tail -3; echo "Set M2: IMPORT FAILED — do not restart"; exit 1
+fi

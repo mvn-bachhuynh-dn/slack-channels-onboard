@@ -59,7 +59,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kirocrew: ["v0.9.0"]
+        kirocrew: ["v0.9.0", "v0.10.0"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6

@@ -31,7 +31,7 @@ python3 - "$SITE" "$STAMP" <<'PY'
 import re, shutil, sys, pathlib
 site = pathlib.Path(sys.argv[1])
 stamp = sys.argv[2]
-# Upstream fixed this in kirodotdev/KiroCrew#22858 (merged after 0.9.0): the
+# Upstream fixed this in kirodotdev/KiroCrew#22858 (on main; NOT in 0.9.0 or 0.10.0): the
 # chat paths resolve the channel's crew through slack/channel_crew.py. On a
 # release that carries it this Set is redundant and its anchors may be gone.
 if "resolve_channel_crew" in (site / "slack/transport_dispatch.py").read_text():
@@ -88,12 +88,10 @@ def _route(text, binding_call):
 
 td = site / "slack/transport_dispatch.py"
 t = td.read_text()
-if "_agent_workspace_binding" not in t:
-    t = t.replace(
-        '_DEFAULT_KIROCREW_AGENT = "kirocrew"\n\n\n',
-        '_DEFAULT_KIROCREW_AGENT = "kirocrew"\n\n\n' + _TD_HELPER,
-        1,
-    )
+if "def _agent_workspace_binding(gateway, agent)" not in t:
+    # Module level at the end of the file (0.10.0 dropped the old blank-line anchor);
+    # the helper is only called at runtime, so its position does not matter.
+    t = t.rstrip("\n") + "\n\n\n# Set B: channel agent alias -> (kiro agent, workspace cwd).\n" + _TD_HELPER.rstrip("\n") + "\n"
 if "_dispatch_agent = _kiro_agent or _agent" not in t:
     t, _n = _route(t, "_agent_workspace_binding(gateway, _agent)")
 td.write_text(t)
@@ -114,7 +112,7 @@ if "def _agent_workspace_binding(agent)" not in h:
 if "_dispatch_agent = _kiro_agent or _agent" not in h:
     h, _n = _route(h, "_agent_workspace_binding(_agent)")
 hd.write_text(h)
-ok_b = all("_dispatch_agent = _kiro_agent or _agent" in f.read_text() for f in (td, hd))
+ok_b = all("_dispatch_agent = _kiro_agent or _agent" in f.read_text() for f in (td, hd)) and "def _agent_workspace_binding(gateway, agent)" in td.read_text()
 print("Set B (slack channel workspace):", "OK" if ok_b else "CHECK ANCHORS")
 sys.exit(0 if ok_b else 1)
 PY

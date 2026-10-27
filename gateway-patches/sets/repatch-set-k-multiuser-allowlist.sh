@@ -3,7 +3,7 @@
 # Set K — Slack multi-user allowlist (deny-by-default, owner always allowed).
 #
 # Upstream locks Slack to owner-only at runtime ("Multi-user access is disabled
-# for security"). The owner re-enabled per-user allowlist access: only users in
+# for security"). Steve re-enabled per-user allowlist access: only users in
 # slack.allowed_users may chat (owner always allowed, empty list => owner-only).
 # Full rationale + config format: ~/.kiro/steering/slack-multiuser-allowlist.md
 #

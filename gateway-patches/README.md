@@ -1,6 +1,6 @@
 # Gateway patches
 
-On a **stock** Kiro Crew 0.9.0 gateway the app can write every binding, but a
+On a **stock** Kiro Crew 0.9.0 or 0.10.0 gateway the app can write every binding, but a
 Slack channel turn does not use it: the chat path passes the channel's agent
 alias to kiro-cli as a mode name and runs in a scratch directory instead of the
 agent's workspace. **Set B fixes that and is needed for the app's core
@@ -17,13 +17,14 @@ Without the optional sets, the app hides their features and their routes refuse.
   write inside one channel's workspace, and ask the owner in Slack for missing
   permissions. Review them like any security change.
 - **They patch the installed package in place**, by anchored text replacement.
-  They are written against **Kiro Crew 0.9.0**. On any other version an anchor
+  They are written against **Kiro Crew 0.9.0 and 0.10.0**. On any other version an anchor
   may not match: that set stops with `CHECK ANCHORS`, writes nothing, and
   `apply.sh` stops there. They are not a supported Kiro Crew feature.
 - **A Kiro Crew update overwrites them.** Re-run `apply.sh` after every update.
   A set that finds the fix already shipped upstream turns itself into a no-op.
 - The Slack approval buttons added by Set R/R3 are in Vietnamese
-  (*Cho phép 1 lần*, *Cho phép cả lượt này*, *Luôn cho phép*, *Từ chối*).
+  (*Cho phép 1 lần*, *Cho phép cả lượt này*, *Luôn cho phép*, *Từ chối*), and
+  so is Set T's notice to a non-owner who posts in an owner thread.
 
 ## Which feature needs which set
 
@@ -32,15 +33,15 @@ The app detects every feature at runtime, by the function the gateway exposes
 
 | App feature | Sets | Upstream status |
 |---|---|---|
-| **Channel turns use the agent and its workspace (core)** | B | fixed upstream by kirodotdev/KiroCrew#22858, after 0.9.0; the set no-ops on a release that carries it |
+| **Channel turns use the agent and its workspace (core)** | B | fixed upstream by kirodotdev/KiroCrew#22858, which is in neither 0.9.0 nor 0.10.0; the set no-ops on a release that carries it |
 | Members (`slack.allowed_users`, read-only) | K, M, M2, O, O2, O3 | proposed in kirodotdev/KiroCrew#22759 |
 | Maintainers per channel (scoped write) | P, P3 | proposed in kirodotdev/KiroCrew#22759 |
 | Approved commands per channel | P2 | proposed in kirodotdev/KiroCrew#22759 |
 | Approved programs; owner asked in Slack | R, R2, R3 | proposed in kirodotdev/KiroCrew#22759 |
 | Open channels (every channel member, read-only) | Q, Q2 | proposed in kirodotdev/KiroCrew#22759 |
-| Workspace confinement for maintainer channels | T (+ `sets/patch-src/kc_confine.py`) | proposed in kirodotdev/KiroCrew#22759 |
+| Workspace confinement for maintainer channels; a thread the owner opens runs unconfined and is owner-only | T (+ `sets/patch-src/kc_confine.py`) | proposed in kirodotdev/KiroCrew#22759 |
 | Agent backend per channel | U | issue kirodotdev/KiroCrew#21910, PR #16200 (open) |
-| (support) | S: `KIROCREW_SLACK_TEAM_ID` in the agent env | PR kirodotdev/KiroCrew#22380 (open) |
+| (support) | S: `KIROCREW_SLACK_TEAM_ID` in the agent env | PR kirodotdev/KiroCrew#22380, merged after 0.10.0; the set no-ops on a release that carries it |
 
 Every script's header explains what it changes, why, and how to roll it back.
 
@@ -57,7 +58,7 @@ bash gateway-patches/apply.sh --list   # the sets, in the order they run
 ```
 
 Pick only what you need with `--only` (sets still run in the fixed order).
-Combinations tested on a pristine 0.9.0 tree:
+Combinations tested on pristine 0.9.0 and 0.10.0 trees:
 
 | You want | Command |
 |---|---|
@@ -85,5 +86,6 @@ clear `__pycache__`, restart. Or reinstall the package
 
 ## Tested
 
-Every combination above applies to a pristine `v0.9.0` tree, and the full set
-runs on a live 0.9.0 gateway. Not tested on other versions or on Windows.
+CI applies every combination above, twice, to pristine `v0.9.0` and `v0.10.0`
+trees, and the full set runs on a live 0.10.0 gateway. Not tested on other
+versions or on Windows.

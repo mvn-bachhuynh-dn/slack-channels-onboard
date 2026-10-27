@@ -3,7 +3,7 @@
 # Set U — per-crew ACP backend pin: agents.<name>.acp_backend (2026-10-21).
 #
 # Goal: a channel's agent runs on the harness pinned on ITS crew record
-# (e.g. one channel on kas, another on claude) instead of the one
+# (e.g. erp-dental on kas, monitor-team on claude) instead of the one
 # install-wide agent.acp_backend.
 #
 # Upstream: issue kirodotdev/KiroCrew#21910, PR #16200 (backend half) and
@@ -96,6 +96,18 @@ def sub_once(key, old, new, label, stage=1):
     src[key] = src[key].replace(old, new, 1)
 
 
+def sub_alt(key, alts, label, stage=1):
+    """sub_once over layout variants: the first (old, new) whose anchor is unique wins."""
+    if stage == 1 and v1_done:
+        return
+    for old, new in alts:
+        if src[key].count(old) == 1:
+            src[key] = src[key].replace(old, new, 1)
+            return
+    print(f"Set U: anchor '{label}' found {[src[key].count(o) for o, _ in alts]}x in {files[key].name} — CHECK ANCHORS")
+    sys.exit(1)
+
+
 # 1) sections.py — the field, right after reasoning_effort on the crew record.
 anchor = (
     '            "reasoning-capable models accept a level; on any other model the pin "\n'
@@ -156,27 +168,28 @@ sub_once(
 )
 
 # 2c) loader.py — the factory hands the crew's pin to the one selection gate.
-anchor = (
-    "            _backend = select_provider_backend(\n"
-    "                session_key,\n"
-    "                self.agent.member_acp_backend,\n"
-    "                self.agent.acp_backend,\n"
-    "            )\n"
-)
-sub_once(
-    "loader",
-    anchor,
-    "            _backend = select_provider_backend(\n"
-    "                session_key,\n"
-    "                self.agent.member_acp_backend,\n"
-    "                self.agent.acp_backend,\n"
+#     0.10.0 added ``backend_override=`` (spawn_run(backend=...)) to the call.
+_CREW_KW = (
     "                # A pooled child has no session key and must stay on the\n"
     "                # default backend; pinned crews bypass the pool instead.\n"
     "                crew_backend=(\n"
     "                    self.crew_acp_backend(agent, crew_agent) if session_key else None\n"
     "                ),\n"
     "                crew_name=crew_agent or \"\",\n"
-    "            )\n",
+)
+_CALL = (
+    "            _backend = select_provider_backend(\n"
+    "                session_key,\n"
+    "                self.agent.member_acp_backend,\n"
+    "                self.agent.acp_backend,\n"
+)
+sub_alt(
+    "loader",
+    [
+        (_CALL + "                backend_override=backend_override,\n            )\n",
+         _CALL + "                backend_override=backend_override,\n" + _CREW_KW + "            )\n"),
+        (_CALL + "            )\n", _CALL + _CREW_KW + "            )\n"),
+    ],
     "factory select_provider_backend",
 )
 
@@ -189,9 +202,15 @@ anchor = (
     "    configured_default: str,\n"
     ") -> str:\n"
 )
-sub_once(
-    "members",
-    anchor,
+_SIG_10 = anchor.replace(
+    "    configured_default: str,\n", "    configured_default: str,\n    backend_override: str | None = None,\n"
+)
+_SIG_NEW_TAIL = (
+    "    crew_backend: str | None = None,\n"
+    "    crew_name: str = \"\",\n"
+    ") -> str:\n"
+)
+_KC_GATE = (
     "class CrewBackendRefused(RuntimeError):\n"
     '    """A crew\'s pinned ACP backend cannot run here (Set U, _kc_crew_acp_backend_v1).\n'
     "\n"
@@ -235,25 +254,18 @@ sub_once(
     "    return pin\n"
     "\n"
     "\n"
-    "def select_provider_backend(\n"
-    "    session_key: str | None,\n"
-    "    member_backend: str,\n"
-    "    configured_default: str,\n"
-    "    crew_backend: str | None = None,\n"
-    "    crew_name: str = \"\",\n"
-    ") -> str:\n",
+)
+sub_alt(
+    "members",
+    [
+        (_SIG_10, _KC_GATE + _SIG_10[: -len(") -> str:\n")] + _SIG_NEW_TAIL),
+        (anchor, _KC_GATE + anchor[: -len(") -> str:\n")] + _SIG_NEW_TAIL),
+    ],
     "select_provider_backend signature",
 )
-anchor = (
-    "    from kiro_crew.acp_backends import resolve_selected_backend\n"
-    "\n"
-    "    if is_member_session_key(session_key):\n"
-)
-sub_once(
-    "members",
-    anchor,
-    "    from kiro_crew.acp_backends import resolve_selected_backend\n"
-    "\n"
+# The crew pin ranks below an explicit spawn_run(backend=...) override (0.10.0)
+# and above the member-DM route's neighbour, the configured default.
+_PIN_ARM = (
     "    # Set U: the crew's own pin outranks the configured default, never the\n"
     "    # member-DM route (see the Set U header for why).\n"
     "    if crew_backend is not None and not is_member_session_key(session_key):\n"
@@ -269,7 +281,20 @@ sub_once(
     "            crew_name or \"?\",\n"
     "        )\n"
     "        return backend\n"
-    "    if is_member_session_key(session_key):\n",
+)
+_MEMBER_ARM = "    if is_member_session_key(session_key):\n        backend = resolve_selected_backend(member_backend)\n"
+_OLD_BODY = (
+    "    from kiro_crew.acp_backends import resolve_selected_backend\n"
+    "\n"
+    "    if is_member_session_key(session_key):\n"
+)
+sub_alt(
+    "members",
+    [
+        (_OLD_BODY, "    from kiro_crew.acp_backends import resolve_selected_backend\n\n" + _PIN_ARM
+         + "    if is_member_session_key(session_key):\n"),
+        (_MEMBER_ARM, _PIN_ARM + _MEMBER_ARM),
+    ],
     "select_provider_backend body",
 )
 

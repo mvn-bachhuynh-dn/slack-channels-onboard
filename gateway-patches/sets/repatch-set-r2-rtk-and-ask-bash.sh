@@ -54,13 +54,17 @@ def apply(rel, needs, edits, tail=""):
     print(f"Set R2: patched {rel}")
 
 
+# The seed renderer: acp/client_claude_seed.py (0.10.0, 4-space indent) or
+# acp/client.py (0.9.0, method, 8-space indent).
+_SEED = "acp/client_claude_seed.py" if (site / "acp/client_claude_seed.py").exists() else "acp/client.py"
+_I = "    " if _SEED.endswith("_seed.py") else "        "
 apply(
-    "acp/client.py",
+    _SEED,
     ["_kc_claude_ask_reads_v1"],
     [(
-        "        perms[\"ask\"] = sorted(set(perms.get(\"ask\") or []) | {\"Read\", \"Grep\", \"Glob\"})\n",
-        f"        # Set R2 ({MARK}): Bash too — Claude Code auto-runs 'read-only' Bash without asking.\n"
-        "        perms[\"ask\"] = sorted(set(perms.get(\"ask\") or []) | {\"Read\", \"Grep\", \"Glob\", \"Bash\"})\n",
+        _I + "perms[\"ask\"] = sorted(set(perms.get(\"ask\") or []) | {\"Read\", \"Grep\", \"Glob\"})\n",
+        _I + f"# Set R2 ({MARK}): Bash too — Claude Code auto-runs 'read-only' Bash without asking.\n"
+        + _I + "perms[\"ask\"] = sorted(set(perms.get(\"ask\") or []) | {\"Read\", \"Grep\", \"Glob\", \"Bash\"})\n",
     )],
 )
 
@@ -182,7 +186,7 @@ if "_kc_r_add_maintainer_rule = _kc_add_maintainer_rule\n" not in s and s.count(
 
 import importlib, inspect
 TD = importlib.import_module("kiro_crew.slack.transport_dispatch")
-C = importlib.import_module("kiro_crew.acp.client")
+C = importlib.import_module("kiro_crew." + _SEED[:-3].replace("/", "."))
 assert TD._kc_norm_words(["rtk", "proxy", "bash", "-c", "x"]) == ["bash", "-c", "x"]
 assert TD._kc_norm_words(["rtk", "curl", "x"]) is None
 assert "proxy" in TD._KC_PROGRAM_NEVER

@@ -2,7 +2,7 @@
 # ============================================================================
 # Set O3 — close the member→owner ESCALATION paths that bypass Set O2.
 #
-# WHY (found in a live member test): O2 correctly denied
+# WHY (found 2026-10-19, Anh Dao test in #monitor-team): O2 correctly denied
 # Edit/Bash on the member's own transport turns, but the agent then offered an
 # [OPTIONS:] card ("Đã cấp quyền, thêm dòng test lại"). The member clicked it;
 # slack/interactions.dispatch only checks is_allowed_user, then re-dispatches

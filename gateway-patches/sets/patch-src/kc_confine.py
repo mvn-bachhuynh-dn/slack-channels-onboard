@@ -23,6 +23,14 @@ WHAT
     kernel, not a command parser, keeps them inside the workspace. Any spawn
     that is not verifiably confined keeps the old (strict) gate.
 
+OWNER THREADS
+    A thread the owner opens with a new top-level message is NOT confined: the
+    agent gets the owner's full home. Only the owner may post in it; anyone else
+    is refused in the thread (``note_thread_sender``, called from
+    slack/transport_dispatch.py). Older threads and threads a non-owner opened
+    stay confined, even when the owner posts in them. Modes live in
+    ``~/.local/state/kc-confine/threads.json``.
+
 CLAUDE AUTH
     The confined claude gets its own ~/.claude (private home). Only the
     ``claudeAiOauth`` entry of the owner's ``~/.claude/.credentials.json`` is
@@ -193,6 +201,45 @@ def private_home(name: str) -> Path:
     return h
 
 
+# ---------------------------------------------------------------- owner threads
+# A thread the OWNER opens in a confined channel runs unconfined (owner's full
+# home, gh, ssh, ...), and only the owner may post in it. Any other thread stays
+# confined. The mode is fixed when the gateway first sees the thread: "owner"
+# only for a new top-level message by the owner; an older thread, or one a
+# non-owner opened, is "shared".
+THREADS = STATE / "threads.json"
+_THREADS_LOCK = threading.Lock()
+OWNER_THREAD_REFUSAL = (
+    "Thread này do owner mở và bot chạy với toàn quyền của owner, nên chỉ owner chat được ở đây. "
+    "Hãy mở một thread mới trong channel để làm việc với bot."
+)
+
+
+def _thread_mode(channel: str, thread_ts: str) -> str | None:
+    return (_read_json(THREADS) or {}).get(f"{channel}:{thread_ts}")
+
+
+def note_thread_sender(channel: str, thread_ts: str, msg_ts: str, owner: bool) -> str | None:
+    """Record the mode of a confined channel's thread; refusal text for a non-owner in an owner thread."""
+    if not channel_workspace(channel):
+        return None
+    key = f"{channel}:{thread_ts}"
+    with _THREADS_LOCK:
+        rows = _read_json(THREADS) or {}
+        mode = rows.get(key)
+        if mode is None:
+            mode = "owner" if owner and msg_ts == thread_ts else "shared"
+            rows[key] = mode
+            _atomic_write(THREADS, json.dumps(rows, indent=1) + "\n")
+            logger.info("Set T: thread %s in %s is %s", thread_ts, channel, mode)
+    return OWNER_THREAD_REFUSAL if mode == "owner" and not owner else None
+
+
+def _owner_thread(host: Any, channel: str) -> bool:
+    key = str(getattr(host, "_session_key", "") or "")
+    return key.startswith("slack:") and _thread_mode(channel, key[len("slack:"):]) == "owner"
+
+
 _SYNC_LOCK = threading.Lock()
 
 
@@ -338,10 +385,20 @@ def bwrap_argv(argv: list[str], root: str, home: Path, work_dir: str,
         p = HOME / rel
         if p.exists():
             a += ["--ro-bind", str(p), str(p)]
+    # ~/Projects is an empty READ-ONLY tmpfs around the workspace, so a write to a
+    # sibling (git worktree add ../x) fails with EROFS instead of silently landing
+    # in the private home where the owner never sees it.
+    projects = HOME / "Projects"
+    in_projects = _inside(str(projects), root)
+    if in_projects:
+        a += ["--tmpfs", str(projects)]
     for w in writable:
         if w and os.path.isdir(w):
             a += ["--bind", w, w]
-    a += ["--bind", root, root, "--chdir", work_dir,
+    a += ["--bind", root, root]
+    if in_projects:
+        a += ["--remount-ro", str(projects)]
+    a += ["--chdir", work_dir,
           "--setenv", "HOME", str(HOME), "--setenv", "XDG_RUNTIME_DIR", "/tmp",
           "--setenv", "DISABLE_AUTOUPDATER", "1", "--setenv", "KC_CONFINED_ROOT", root]
     for k in UNSET_ENV:
@@ -357,7 +414,11 @@ def maybe_confine(host: Any, argv: list[str], writable: tuple[str, ...] = ()) ->
         if not hit:
             return argv
         name, root = hit
-        work_dir = os.path.realpath(str(getattr(host, "_work_dir", "") or ""))
+        if _owner_thread(host, getattr(host, "_channel_id", "")):
+            logger.info("Set T: channel %s owner thread %s — NOT confined (owner only)",
+                        getattr(host, "_channel_id", ""), getattr(host, "_session_key", ""))
+            return argv
+        work_dir =os.path.realpath(str(getattr(host, "_work_dir", "") or ""))
         if not _inside(root, work_dir):
             logger.warning("Set T: channel %s session cwd %s is outside %s — NOT confined (strict gate stays)",
                            getattr(host, "_channel_id", ""), work_dir, root)
