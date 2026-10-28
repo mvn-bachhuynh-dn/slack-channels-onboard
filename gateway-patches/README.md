@@ -42,6 +42,7 @@ The app detects every feature at runtime, by the function the gateway exposes
 | Workspace confinement for maintainer channels; a thread the owner opens runs unconfined and is owner-only | T (+ `sets/patch-src/kc_confine.py`) | proposed in kirodotdev/KiroCrew#22759 |
 | Agent backend per channel | U | issue kirodotdev/KiroCrew#21910, PR #16200 (open) |
 | (support) | S: `KIROCREW_SLACK_TEAM_ID` in the agent env | PR kirodotdev/KiroCrew#22380, merged after 0.10.0; the set no-ops on a release that carries it |
+| (support) | V: the last word before a Slack tool card is no longer torn in two (`đơ` [card] `n.Next`) | issue kirodotdev/KiroCrew#21597; #21758 on main only adds a paragraph break, the set no-ops on a release that flushes before the card |
 
 Every script's header explains what it changes, why, and how to roll it back.
 

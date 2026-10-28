@@ -38,6 +38,7 @@ SETS=(
   s   # KIROCREW_SLACK_TEAM_ID in the agent's environment
   t   # OS confinement (bwrap) for maintainer channels
   u   # per-agent ACP backend pin (agents.<name>.acp_backend)
+  v   # flush the stream redactor before a tool card (no torn word around Slack tool cards)
 )
 
 if [ "${1:-}" = "--only" ]; then
