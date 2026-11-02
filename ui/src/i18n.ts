@@ -60,7 +60,10 @@ const en = {
   // people
   peopleUnsupportedTitle: 'Members and maintainers',
   peopleUnsupported:
-    'This Kiro Crew gateway only lets the owner use the bot on Slack, so members, maintainers, approved commands and open channels would have no effect and are disabled here. They need a gateway with per-user Slack access control (see the README, section "People").',
+    'This Kiro Crew gateway only lets the owner use the bot on Slack, so members, maintainers, approved commands and open channels would have no effect and are disabled here. They need per-user Slack access control, which a stock gateway up to Kiro Crew 0.11.1 does not have. The optional gateway patches add it: run gateway-patches/apply.sh on the host that runs the gateway, then restart the gateway.',
+  patchesLink: 'Gateway patches: what each one adds and how to apply it',
+  backendUnsupported:
+    'Agent backend per channel is hidden: this gateway cannot pin a backend per agent. Kiro Crew 0.12.0 can; on 0.9.0 to 0.11.1, gateway patch Set U adds it.',
   membersTitle: 'Members',
   membersHelp: [
     'May talk to the bot in every channel it is in, read-only: they can read files in that channel\'s workspace (not .env, keys, .git/…), cannot edit files or run commands.',
@@ -167,7 +170,10 @@ const vi: Partial<Strings> = {
   workspaceOf: (c) => `Workspace của #${c}`,
   peopleUnsupportedTitle: 'Member và maintainer',
   peopleUnsupported:
-    'Gateway Kiro Crew này chỉ cho owner dùng bot trên Slack, nên member, maintainer, lệnh được duyệt và channel mở sẽ không có tác dụng và bị tắt ở đây. Cần gateway có kiểm soát truy cập Slack theo từng người (xem README, mục "People").',
+    'Gateway Kiro Crew này chỉ cho owner dùng bot trên Slack, nên member, maintainer, lệnh được duyệt và channel mở sẽ không có tác dụng và bị tắt ở đây. Cần kiểm soát truy cập Slack theo từng người, mà gateway gốc tới Kiro Crew 0.11.1 chưa có. Bộ patch gateway (tuỳ chọn) bổ sung việc này: chạy gateway-patches/apply.sh trên máy chạy gateway rồi restart gateway.',
+  patchesLink: 'Patch gateway: mỗi set thêm gì và cách áp dụng',
+  backendUnsupported:
+    'Cột Agent backend đang ẩn: gateway này chưa cho chọn backend theo từng agent. Kiro Crew 0.12.0 đã có; trên 0.9.0 tới 0.11.1, patch gateway Set U bổ sung việc này.',
   membersTitle: 'Member',
   membersHelp: [
     'Chat được với bot ở mọi channel bot có mặt, nhưng chỉ đọc: đọc file trong workspace của channel đó (trừ .env, khoá, .git/…), không sửa file, không chạy lệnh.',

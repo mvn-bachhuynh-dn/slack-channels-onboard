@@ -38,7 +38,10 @@ Every write is recorded in the SEL audit log (`slack_channels_onboard.*`).
 Stock Kiro Crew lets **only the owner** use the bot on Slack. On such a gateway
 this section of the page is shown read-only with an explanation, and its API
 routes answer `409`, because a role the gateway does not enforce would only look
-like access control.
+like access control. The explanation links to
+[`gateway-patches/`](gateway-patches/README.md), the optional patches that add
+per-user access to a 0.9.0 to 0.11.1 gateway. Installing the app does not apply
+them: run `gateway-patches/apply.sh` on the host that runs the gateway.
 
 On a gateway that enforces per-user Slack access, the app detects each control
 separately (by the function the gateway exposes, never by version) and enables
@@ -66,7 +69,8 @@ On a gateway that reads `agents.<name>.acp_backend` (upstream issue
 kirodotdev/KiroCrew#21910), the channel table gets an **Agent backend** column:
 the harness the channel's agent runs on (kiro, kas, claude, …). The column is
 hidden on a gateway without the field, detected the same way as the People
-controls. Until upstream ships the field, Set U in
+controls, and the page says why. Upstream ships the field in Kiro Crew 0.12.0
+(kirodotdev/KiroCrew#25485); on 0.9.0 to 0.11.1, Set U in
 [`gateway-patches/`](gateway-patches/README.md) adds it.
 
 - The pin lives on the **agent**, so every channel bound to that agent moves with
