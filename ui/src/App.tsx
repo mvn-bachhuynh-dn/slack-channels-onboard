@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { t } from './i18n'
 
 const BASE = '/api/apps/slack-channels-onboard'
+const PATCHES_URL = 'https://github.com/mvn-bachhuynh-dn/slack-channels-onboard/blob/main/gateway-patches/README.md'
 const ACTIVATIONS = ['mention', 'always', 'observe', 'review', 'off'] as const
 
 interface Row {
@@ -560,6 +561,9 @@ export default function SlackChannelsOnboard() {
           <CardTitle>{t.configuredTitle}</CardTitle>
           {caps.open_channel && <p className="text-xs text-muted mb-2">{t.openHelp}</p>}
           {backends?.supported && <p className="text-xs text-muted mb-2">{t.backendHelp(backends.refuses)}</p>}
+          {backends && !backends.supported && (
+            <p className="text-xs text-muted mb-2">{t.backendUnsupported} <a href={PATCHES_URL} target="_blank" rel="noreferrer" className="underline">{t.patchesLink}</a></p>
+          )}
           <table className="w-full text-left text-sm">
             <thead><tr className="text-xs text-muted">
               <th className="pb-2 pr-3">{t.colChannel}</th><th className="pb-2 pr-3">{t.colAgent}</th>
@@ -581,6 +585,7 @@ export default function SlackChannelsOnboard() {
           <Card>
             <CardTitle>{t.peopleUnsupportedTitle}</CardTitle>
             <p className="text-sm text-muted">{t.peopleUnsupported}</p>
+            <p className="text-sm mt-2"><a href={PATCHES_URL} target="_blank" rel="noreferrer" className="underline">{t.patchesLink}</a></p>
           </Card>
         )}
         {people && caps.members && <MembersCard people={people} onSaved={saved} onError={setError} />}
