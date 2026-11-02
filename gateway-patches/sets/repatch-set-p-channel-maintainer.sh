@@ -27,6 +27,10 @@
 # Read on every tool call; any error => no maintainer (fail closed).
 #
 # Hooks into Set O2's gate in slack/transport_dispatch.py. Requires O2.
+# Needs _agent_workspace_binding(gateway, agent) -> (kiro_agent, cwd). Set B
+# added it up to 0.10.0; 0.11.0 ships Set B's fix upstream (channel_crew.py) so
+# Set B no-ops and the helper is gone. This set then defines it itself, with the
+# same contract (marker _kc_ws_binding_v1). P2 and Q use it too.
 # Idempotent via marker _kc_channel_maintainer_v1.
 # ============================================================================
 set -uo pipefail
@@ -41,6 +45,35 @@ site, stamp = pathlib.Path(sys.argv[1]), sys.argv[2]
 MARK = "_kc_channel_maintainer_v1"
 p = site / "slack/transport_dispatch.py"
 s = p.read_text()
+WS_HELPER = '''
+
+# Set P (_kc_ws_binding_v1): agent alias -> (kiro_agent, cwd). Set B defined this
+# up to 0.10.0; on a release where Set B no-ops (fixed upstream) Set P owns it.
+def _agent_workspace_binding(gateway, agent):
+    """Resolve a KiroCrew agent alias to (kiro_agent, cwd); (None, None) on miss."""
+    if not gateway or not agent:
+        return None, None
+    try:
+        from kiro_crew.config.loader import default_project_dir, resolve_agent_bindings
+
+        cfg = getattr(gateway, "_cfg", None)
+        if cfg is None:
+            return None, None
+        bindings = resolve_agent_bindings(cfg, agent)
+        kiro_agent = bindings.kiro_agent or None
+        agent_cfg = (getattr(cfg, "agents", None) or {}).get(agent)
+        ws_name = getattr(agent_cfg, "workspace", None)
+        cwd = default_project_dir(ws_name) or None if ws_name else None
+        return kiro_agent, cwd
+    except Exception:
+        return None, None
+'''
+if "def _agent_workspace_binding(" not in s:
+    shutil.copy2(p, p.with_name(p.name + f".bak-setp-ws-{stamp}"))
+    s = s.rstrip("\n") + "\n" + WS_HELPER
+    p.write_text(s)
+    py_compile.compile(str(p), doraise=True)
+    print("Set P: added _agent_workspace_binding (_kc_ws_binding_v1)")
 if MARK in s:
     print("Set P: already applied — no-op")
 else:

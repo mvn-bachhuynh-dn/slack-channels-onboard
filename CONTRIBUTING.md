@@ -47,7 +47,8 @@ cd ui && npm ci && npm run build && rm -rf node_modules && cd ..
 
 CI runs on every pull request: the backend tests on Python 3.10 and 3.12, a
 check that `ui/dist/` matches a fresh build, and every documented
-`gateway-patches` combination applied twice to a pristine Kiro Crew 0.9.0.
+`gateway-patches` combination applied twice to pristine Kiro Crew 0.9.0,
+0.10.0, 0.11.0 and 0.11.1 trees.
 
 `main` moves only through pull requests. The App Store installs the `release`
 branch, which only advances to a `main` commit after a Kiro Crew maintainer has

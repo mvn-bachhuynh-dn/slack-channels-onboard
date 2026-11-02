@@ -15,7 +15,8 @@
 #      approvals, message shortcuts, modals) is owner-only.
 #   2. handler.maybe_route_linked_thread — a non-owner message never enters a
 #      linked dashboard slot (falls through to the transport path where O2 holds).
-#   3. events slash command      — /kirocrew is owner-only.
+#   3. events slash command      — /kirocrew is owner-only (0.11.0 moved the
+#      slash handler to slack/events_slash.py; same anchor there).
 #   4. handler.maybe_handle_keyword_command — spawn/run/cron keywords owner-only
 #      (they bypass every tool gate; marker _kc_member_no_keyword_cmd_v1).
 # Idempotent via the _kc_member_no_escalation_v1 marker.
@@ -91,7 +92,9 @@ PATCHES = {
 # (composed onto handler: it runs on handler's globals, so is_owner/is_allowed_user/
 # logger resolve there). Each edit goes to the first candidate file holding its anchor.
 CANDIDATES = {"slack/handler.py": ["slack/handler.py", "slack/handler_runtime/inbound.py",
-                                    "slack/handler_runtime/dispatch.py"]}
+                                    "slack/handler_runtime/dispatch.py"],
+              # 0.11.0 split events.py; the slash command lives in events_slash.py.
+              "slack/events.py": ["slack/events.py", "slack/events_slash.py"]}
 work = {}
 for rel, edits in PATCHES.items():
     for old, new in edits:
@@ -117,7 +120,10 @@ for f, text in work.items():
 
 # Sanity: the names the gates use must exist in each module.
 import importlib
-for mod in ("kiro_crew.slack.interactions", "kiro_crew.slack.handler", "kiro_crew.slack.events"):
+_mods = ["kiro_crew.slack.interactions", "kiro_crew.slack.handler", "kiro_crew.slack.events"]
+if (site / "slack/events_slash.py").exists():
+    _mods.append("kiro_crew.slack.events_slash")
+for mod in _mods:
     m = importlib.import_module(mod)
     assert hasattr(m, "is_owner"), f"{mod} lacks is_owner"
 import kiro_crew.slack.interactions as I

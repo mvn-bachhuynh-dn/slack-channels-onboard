@@ -32,6 +32,12 @@
 # for anything that does reach the owner's interactive path.
 #
 # Idempotent via the _kc_member_readonly marker. Anchors verified on 0.8.0.
+# 0.11.0 moved the native permission ladder (both layers) out of handler.py into
+# slack/handler_runtime/permission_ladder.py (_answer_permission_request and
+# handle_interaction, run on handler.py's globals); the set patches that file
+# there, with the L1 gate at function indent (turn.user_id, `return False` in
+# place of `continue`). L1 classifies the EVENT (the helper takes the event, not
+# its title, on 0.10.0 and 0.11.0 alike).
 # ============================================================================
 set -uo pipefail
 
@@ -39,6 +45,9 @@ SITE=${KC_SITE_OVERRIDE:-}; [ -n "$SITE" ] || SITE=$(python3 -c "import pathlib;
 if [ -z "$SITE" ]; then echo "Set O: installed kirocrew venv not found — skipping"; exit 0; fi
 VENV_PY=$(ls "$HOME"/.local/share/pipx/venvs/kirocrew/bin/python* 2>/dev/null | head -1 || true)
 HD="$SITE/slack/handler.py"
+PL="$SITE/slack/handler_runtime/permission_ladder.py"
+# 0.11.0: the ladder lives in permission_ladder.py
+if [ -f "$PL" ] && grep -q "^async def handle_interaction(" "$PL"; then HD="$PL"; fi
 [ -f "$HD" ] || { echo "Set O: $HD not found — layout changed; re-check anchors."; exit 1; }
 
 python3 - "$HD" <<'PY'
@@ -53,6 +62,12 @@ ANCHOR_L1 = (
     "                # auto_approve_subagent_spawn \u2192 auto-approve spawn_run tool calls\n"
     "                if _should_auto_approve_spawn(context_builder, event):\n"
 )
+LADDER = p.name == "permission_ladder.py"  # 0.11.0 layout
+if LADDER:
+    ANCHOR_L1 = (
+        "    # auto_approve_subagent_spawn \u2192 auto-approve spawn_run tool calls\n"
+        "    if _should_auto_approve_spawn(context_builder, event):\n"
+    )
 GATE_L1 = (
     "                # Set O (_kc_member_readonly): a NON-OWNER sender is read-only.\n"
     "                # Reject any tool not in the reviewed read-only safe set before\n"
@@ -66,7 +81,7 @@ GATE_L1 = (
     "                    )\n"
     "                else:\n"
     "                    _kc_safe_tool = None\n"
-    "                if _kc_safe_tool is not None and not _kc_safe_tool(event.title or \"\"):\n"
+    "                if _kc_safe_tool is not None and not _kc_safe_tool(event):\n"
     "                    await _reject_orphaned_tool(client, event.request_id)\n"
     "                    sel().log_tool_invocation(\n"
     "                        session_key=session_key,\n"
@@ -78,7 +93,14 @@ GATE_L1 = (
     "                        metadata={\"reason\": \"member_readonly (Set O)\", \"user_id\": user_id},\n"
     "                    )\n"
     "                    continue\n"
-) + ANCHOR_L1
+)
+if LADDER:
+    GATE_L1 = "\n".join(
+        (l[12:] if l.startswith(" " * 12) else l) for l in GATE_L1.split("\n")
+    ).replace("is_owner(user_id)", "is_owner(turn.user_id)").replace(
+        '\"user_id\": user_id}', '\"user_id\": turn.user_id}'
+    ).replace("        continue\n", "        return False\n")
+GATE_L1 = GATE_L1 + ANCHOR_L1
 if s.count(ANCHOR_L1) != 1:
     print("Set O [L1]: handle_message anchor not unique — CHECK ANCHORS"); sys.exit(1)
 s = s.replace(ANCHOR_L1, GATE_L1, 1)
@@ -144,13 +166,14 @@ import pathlib, sys
 s = pathlib.Path(sys.argv[1]).read_text()
 assert "_kc_member_readonly" in s, "marker missing"
 assert "_is_heartbeat_safe_tool as _kc_safe_tool" in s, "L1 lazy import missing"
-assert '_kc_safe_tool is not None and not _kc_safe_tool(event.title or "")' in s, "L1 gate missing"
+assert ('_kc_safe_tool is not None and not _kc_safe_tool(event)' in s
+        or '_kc_safe_tool is not None and not _kc_safe_tool(event.title or "")' in s), "L1 gate missing"
 # must NOT have a module-level gateway import (circular)
 assert "from kiro_crew.slack.gateway import _is_heartbeat_safe_tool  # Set O\n" not in s, \
     "module-level gateway import present — circular import risk"
 assert "if action_id in (_ACTION_APPROVE, _ACTION_TRUST) and not is_owner(user_id):" in s, "L2 gate missing"
 # L1 must sit before the first auto-approve in handle_message
-i_hm = s.index("async def handle_message(")
+i_hm = s.index("async def _answer_permission_request(" if "async def _answer_permission_request(" in s and "async def handle_message(" not in s else "async def handle_message(")
 i_l1 = s.index("Set O (_kc_member_readonly): a NON-OWNER sender", i_hm)
 i_auto = s.index("if approval_mode == APPROVAL_AUTO:", i_hm)
 assert i_hm < i_l1 < i_auto, "L1 not before auto-approve"
