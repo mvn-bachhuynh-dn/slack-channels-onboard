@@ -39,6 +39,10 @@ SETS=(
   t   # OS confinement (bwrap) for maintainer channels
   u   # per-agent ACP backend pin (agents.<name>.acp_backend)
   v   # flush the stream redactor before a tool card (no torn word around Slack tool cards)
+  w   # close a dashboard-run turn on its linked Slack thread (status + Finished footer)
+  x   # map an agent record name to its template for member essentials (#25187)
+  y   # keep a code block whole when a long Slack answer is split
+  z   # upload local images in a dashboard-mirrored Slack answer
 )
 
 if [ "${1:-}" = "--only" ]; then

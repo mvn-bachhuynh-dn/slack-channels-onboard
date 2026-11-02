@@ -11,6 +11,8 @@
 #   1) slack/handler.py :: is_allowed_user — owner-only -> allowlist set.
 #   2) slack/gateway.py :: GatewayOrchestrator.__init__ — stop PRUNING
 #      cfg.slack.allowed_users down to the owner; load the full set instead.
+#      (0.11.0 moved __init__'s body to slack/gateway_runtime/orchestrator_init.py,
+#      a module-level function at 4-space indent; same edit there.)
 # transport.py::authorize already reads the set correctly; only the load matters.
 #
 # Idempotent: no-op once patched (markers present). Applied in place because the
@@ -32,6 +34,8 @@ if [ -f "$SITE/slack/handler_runtime/access.py" ] && grep -q "^def is_allowed_us
   HD="$SITE/slack/handler_runtime/access.py"
 fi
 GW="$SITE/slack/gateway.py"
+OI="$SITE/slack/gateway_runtime/orchestrator_init.py"
+if [ -f "$OI" ] && grep -q "u\[\"slack_id\"\] for u in cfg.slack.allowed_users" "$OI"; then GW="$OI"; fi
 for f in "$HD" "$GW"; do
   [ -f "$f" ] || { echo "Set K: $f not found — Kiro Crew layout changed; re-check anchors."; exit 1; }
 done
@@ -110,12 +114,18 @@ NEW = (
     '            u["slack_id"] for u in cfg.slack.allowed_users if u.get("slack_id")\n'
     '        }\n'
 )
+if s.count(OLD) != 1 and p.name == "orchestrator_init.py":
+    # 0.11.0: same body, one indent level shallower, no inline annotation.
+    _ded = lambda t: "\n".join(l[4:] if l.startswith("    ") else l for l in t.split("\n"))
+    OLD = _ded(OLD).replace("self._allowed_users: set[str] = ", "self._allowed_users = ")
+    NEW = _ded(NEW).replace("self._allowed_users: set[str] = ", "self._allowed_users = ")
 if s.count(OLD) != 1:
     print("Set K [gateway.py]: __init__ prune anchor not unique — CHECK ANCHORS"); sys.exit(1)
 p.write_text(s.replace(OLD, NEW, 1))
 print("Set K [gateway.py]: OK")
 PY
 rc2=$?
+[ "$rc2" -eq 0 ] || { echo "Set K: gateway allowlist load edit FAILED"; exit 1; }
 
 # ---- compile both ----------------------------------------------------------
 if [ -n "$VENV_PY" ]; then

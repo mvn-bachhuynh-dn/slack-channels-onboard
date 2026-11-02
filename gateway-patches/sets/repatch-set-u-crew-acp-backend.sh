@@ -3,7 +3,7 @@
 # Set U — per-crew ACP backend pin: agents.<name>.acp_backend (2026-10-21).
 #
 # Goal: a channel's agent runs on the harness pinned on ITS crew record
-# (e.g. erp-dental on kas, monitor-team on claude) instead of the one
+# (e.g. one channel on kas, another on claude) instead of the one
 # install-wide agent.acp_backend.
 #
 # Upstream: issue kirodotdev/KiroCrew#21910, PR #16200 (backend half) and
@@ -37,6 +37,7 @@
 #
 # Edits (marker _kc_crew_acp_backend_v1, idempotent, anchor-checked):
 #   - config/sections.py      KiroCrewAgentConfig.acp_backend (str | None)
+#                             (config/sections_session.py from 0.11.0)
 #   - config/loader.py        parse it; KiroCrewConfig.crew_acp_backend();
 #                             factory passes crew_backend into the gate
 #   - members.py              select_provider_backend(crew_backend=) + refusal
@@ -59,14 +60,50 @@ site = pathlib.Path(sys.argv[1])
 stamp = sys.argv[2]
 MARK = "_kc_crew_acp_backend_v1"
 
+# 0.11.0 moved KiroCrewAgentConfig from config/sections.py to config/sections_session.py.
+_sections = next(
+    (f for f in (site / "config/sections.py", site / "config/sections_session.py")
+     if f.exists() and "class KiroCrewAgentConfig:" in f.read_text()),
+    site / "config/sections.py",
+)
+# 0.11.0 split config/loader.py: the agents parse is in loader_pipeline.py, the
+# KiroCrewConfig methods (_crew_record, the provider factory) in loader_config.py.
+def _first(cands, needle):
+    return next((f for f in cands if f.exists() and needle in f.read_text()), cands[0])
+
+
+_loader = _first(
+    [site / "config/loader.py", site / "config/loader_config.py"],
+    "def _crew_record(",
+)
+_loader_parse = _first(
+    [site / "config/loader.py", site / "config/loader_pipeline.py"],
+    'reasoning_effort=coerce_effort(crew.get("reasoning_effort"))',
+)
 files = {
-    "sections": site / "config/sections.py",
-    "loader": site / "config/loader.py",
-    "members": site / "members.py",
-    "session": site / "session.py",
-    "alloc": site / "session_allocation.py",
+    "sections": _sections,
+    "loader": _loader,
+    # 0.11.0 moved select_provider_backend to members_parts/member_sessions.py.
+    "members": _first(
+        [site / "members.py", site / "members_parts/member_sessions.py"],
+        "def select_provider_backend(",
+    ),
+    # 0.11.0 moved apply_config_change to session_parts/config_apply.py (4-space).
+    "session": _first(
+        [site / "session.py", site / "session_parts/config_apply.py"],
+        "if change.touched(*self._FACTORY_CONFIG_PATHS):",
+    ),
+    # 0.11.0 moved get_or_create to session_allocation_parts/get_or_create.py.
+    "alloc": _first(
+        [site / "session_allocation.py", site / "session_allocation_parts/get_or_create.py"],
+        "elif await self._crew_pins_effort(agent, extra_factory_kwargs.get(\"crew_agent\")):",
+    ),
     "dispatch": site / "messaging/dispatch.py",
 }
+if _loader_parse != _loader:
+    files["loader_parse"] = _loader_parse
+PARSE = "loader_parse" if "loader_parse" in files else "loader"
+ALLOC_SPLIT = files["alloc"].name == "get_or_create.py"
 src = {k: p.read_text() for k, p in files.items()}
 
 MARK2 = "_kc_crew_acp_backend_v2"
@@ -134,7 +171,7 @@ sub_once(
 # 2a) loader.py — parse. Kept raw (any string); selectability is the gate's call.
 anchor = '                    reasoning_effort=coerce_effort(crew.get("reasoning_effort")),\n'
 sub_once(
-    "loader",
+    PARSE,
     anchor,
     anchor
     + "                    # _kc_crew_acp_backend_v1 (Set U): raw pin, null = inherit.\n"
@@ -283,6 +320,18 @@ _PIN_ARM = (
     "        return backend\n"
 )
 _MEMBER_ARM = "    if is_member_session_key(session_key):\n        backend = resolve_selected_backend(member_backend)\n"
+# 0.11.0: a crewmate's own worker session takes the member route too; the pin
+# leaves it alone exactly as it leaves a member DM alone.
+_MEMBER_ARM_11 = (
+    "    if is_member_session_key(session_key) or is_crewmate_worker_session(session_key):\n"
+    "        backend = resolve_selected_backend(member_backend)\n"
+)
+_PIN_ARM_11 = _PIN_ARM.replace(
+    "    if crew_backend is not None and not is_member_session_key(session_key):\n",
+    "    if crew_backend is not None and not (\n"
+    "        is_member_session_key(session_key) or is_crewmate_worker_session(session_key)\n"
+    "    ):\n",
+)
 _OLD_BODY = (
     "    from kiro_crew.acp_backends import resolve_selected_backend\n"
     "\n"
@@ -294,6 +343,7 @@ sub_alt(
         (_OLD_BODY, "    from kiro_crew.acp_backends import resolve_selected_backend\n\n" + _PIN_ARM
          + "    if is_member_session_key(session_key):\n"),
         (_MEMBER_ARM, _PIN_ARM + _MEMBER_ARM),
+        (_MEMBER_ARM_11, _PIN_ARM_11 + _MEMBER_ARM_11),
     ],
     "select_provider_backend body",
 )
@@ -303,54 +353,104 @@ anchor = (
     "        if change.touched(*self._FACTORY_CONFIG_PATHS):\n"
     "            await self.refresh_defaults(cfg=change.new)\n"
 )
-sub_once(
-    "session",
-    anchor,
+_new = (
     "        if change.touched(*self._FACTORY_CONFIG_PATHS) or any(\n"
     "            # _kc_crew_acp_backend_v1 (Set U): per-crew factory input.\n"
     "            p.endswith(\".acp_backend\") or p == \"agents\" or p.count(\".\") == 1\n"
     "            for p in change.under(\"agents\")\n"
     "        ):\n"
-    "            await self.refresh_defaults(cfg=change.new)\n",
+    "            await self.refresh_defaults(cfg=change.new)\n"
+)
+_ded4 = lambda t: "\n".join(l[4:] if l.startswith("    ") else l for l in t.split("\n"))
+sub_alt(
+    "session",
+    [(anchor, _new), (_ded4(anchor), _ded4(_new))],
     "apply_config_change factory paths",
 )
 
 # 5) session_allocation.py — a pooled child runs the default backend, so a
 #    pinned crew always cold-starts through the factory (where the pin applies).
-anchor = "        elif await self._crew_pins_effort(agent, extra_factory_kwargs.get(\"crew_agent\")):\n"
-sub_once(
-    "alloc",
-    anchor,
-    "        elif await self._kc_crew_pins_backend(agent, extra_factory_kwargs.get(\"crew_agent\")):\n"
-    "            # _kc_crew_acp_backend_v1 (Set U)\n"
-    "            pool_decision = \"bypass_backend\"\n"
-    + anchor,
-    "warm pool crew effort arm",
-)
-anchor = "    async def _crew_pins_effort(self, agent: str | None, crew_agent: object) -> bool:\n"
-sub_once(
-    "alloc",
-    anchor,
-    "    async def _kc_crew_pins_backend(self, agent: str | None, crew_agent: object) -> bool:\n"
-    '        """True when the crew pins its own ACP backend (Set U).\n'
-    "\n"
-    "        Failure answers True: a wrong False hands a pinned crew a pooled child on\n"
-    "        the default backend; a wrong True only costs a cold start.\n"
-    '        """\n'
-    "        try:\n"
-    "            config = await asyncio.to_thread(self._deps.load_config)\n"
-    "            crew = crew_agent if isinstance(crew_agent, str) else None\n"
-    "            return config.crew_acp_backend(agent, crew) is not None\n"
-    "        except Exception:\n"
-    "            self._deps.logger.warning(\n"
-    "                \"Could not read the crew backend pin for agent=%r; cold-starting\",\n"
-    "                agent,\n"
-    "                exc_info=True,\n"
-    "            )\n"
-    "            return True\n"
-    "\n" + anchor,
-    "_crew_pins_effort def",
-)
+if ALLOC_SPLIT:
+    # 0.11.0: get_or_create is a module function in session_allocation_parts/
+    # get_or_create.py (``self`` passed explicitly); the helper is a module
+    # function there too, called directly, already in its v2 (channel) form.
+    anchor = "    elif await self._crew_pins_effort(agent, extra_factory_kwargs.get(\"crew_agent\")):\n"
+    sub_once(
+        "alloc",
+        anchor,
+        "    elif await _kc_crew_pins_backend(\n"
+        "        self, agent, extra_factory_kwargs.get(\"crew_agent\"), channel_id\n"
+        "    ):\n"
+        "        # _kc_crew_acp_backend_v1 (Set U)\n"
+        "        pool_decision = \"bypass_backend\"\n"
+        + anchor,
+        "warm pool crew effort arm",
+    )
+    anchor = "async def _crew_pins_effort(\n"
+    sub_once(
+        "alloc",
+        anchor,
+        "async def _kc_crew_pins_backend(\n"
+        "    self: SessionAllocationService,\n"
+        "    agent: str | None,\n"
+        "    crew_agent: object,\n"
+        "    channel_id: str | None = None,\n"
+        ") -> bool:\n"
+        '    """True when the crew pins its own ACP backend (Set U, _kc_crew_acp_backend_v2).\n'
+        "\n"
+        "    Failure answers True: a wrong False hands a pinned crew a pooled child on\n"
+        "    the default backend; a wrong True only costs a cold start.\n"
+        '    """\n'
+        "    try:\n"
+        "        config = await asyncio.to_thread(self._deps.load_config)\n"
+        "        crew = crew_agent if isinstance(crew_agent, str) else None\n"
+        "        return config.crew_acp_backend(agent, crew, channel_id) is not None\n"
+        "    except Exception:\n"
+        "        self._deps.logger.warning(\n"
+        "            \"Could not read the crew backend pin for agent=%r; cold-starting\",\n"
+        "            agent,\n"
+        "            exc_info=True,\n"
+        "        )\n"
+        "        return True\n"
+        "\n"
+        "\n" + anchor,
+        "_crew_pins_effort def",
+    )
+else:
+    anchor = "        elif await self._crew_pins_effort(agent, extra_factory_kwargs.get(\"crew_agent\")):\n"
+    sub_once(
+        "alloc",
+        anchor,
+        "        elif await self._kc_crew_pins_backend(agent, extra_factory_kwargs.get(\"crew_agent\")):\n"
+        "            # _kc_crew_acp_backend_v1 (Set U)\n"
+        "            pool_decision = \"bypass_backend\"\n"
+        + anchor,
+        "warm pool crew effort arm",
+    )
+    anchor = "    async def _crew_pins_effort(self, agent: str | None, crew_agent: object) -> bool:\n"
+    sub_once(
+        "alloc",
+        anchor,
+        "    async def _kc_crew_pins_backend(self, agent: str | None, crew_agent: object) -> bool:\n"
+        '        """True when the crew pins its own ACP backend (Set U).\n'
+        "\n"
+        "        Failure answers True: a wrong False hands a pinned crew a pooled child on\n"
+        "        the default backend; a wrong True only costs a cold start.\n"
+        '        """\n'
+        "        try:\n"
+        "            config = await asyncio.to_thread(self._deps.load_config)\n"
+        "            crew = crew_agent if isinstance(crew_agent, str) else None\n"
+        "            return config.crew_acp_backend(agent, crew) is not None\n"
+        "        except Exception:\n"
+        "            self._deps.logger.warning(\n"
+        "                \"Could not read the crew backend pin for agent=%r; cold-starting\",\n"
+        "                agent,\n"
+        "                exc_info=True,\n"
+        "            )\n"
+        "            return True\n"
+        "\n" + anchor,
+        "_crew_pins_effort def",
+    )
 
 # 6) messaging/dispatch.py — say WHY in the thread instead of a bare error.
 anchor = (
@@ -431,31 +531,32 @@ sub_once(
     "factory crew pin v2",
     stage=2,
 )
-sub_once(
-    "alloc",
-    "        elif await self._kc_crew_pins_backend(agent, extra_factory_kwargs.get(\"crew_agent\")):\n",
-    "        elif await self._kc_crew_pins_backend(\n"
-    "            agent, extra_factory_kwargs.get(\"crew_agent\"), channel_id\n"
-    "        ):\n",
-    "pool arm v2",
-    stage=2,
-)
-sub_once(
-    "alloc",
-    "    async def _kc_crew_pins_backend(self, agent: str | None, crew_agent: object) -> bool:\n",
-    "    async def _kc_crew_pins_backend(\n"
-    "        self, agent: str | None, crew_agent: object, channel_id: str | None = None\n"
-    "    ) -> bool:\n",
-    "pool helper signature v2",
-    stage=2,
-)
-sub_once(
-    "alloc",
-    "            return config.crew_acp_backend(agent, crew) is not None\n",
-    "            return config.crew_acp_backend(agent, crew, channel_id) is not None\n",
-    "pool helper body v2",
-    stage=2,
-)
+if not ALLOC_SPLIT:
+    sub_once(
+        "alloc",
+        "        elif await self._kc_crew_pins_backend(agent, extra_factory_kwargs.get(\"crew_agent\")):\n",
+        "        elif await self._kc_crew_pins_backend(\n"
+        "            agent, extra_factory_kwargs.get(\"crew_agent\"), channel_id\n"
+        "        ):\n",
+        "pool arm v2",
+        stage=2,
+    )
+    sub_once(
+        "alloc",
+        "    async def _kc_crew_pins_backend(self, agent: str | None, crew_agent: object) -> bool:\n",
+        "    async def _kc_crew_pins_backend(\n"
+        "        self, agent: str | None, crew_agent: object, channel_id: str | None = None\n"
+        "    ) -> bool:\n",
+        "pool helper signature v2",
+        stage=2,
+    )
+    sub_once(
+        "alloc",
+        "            return config.crew_acp_backend(agent, crew) is not None\n",
+        "            return config.crew_acp_backend(agent, crew, channel_id) is not None\n",
+        "pool helper body v2",
+        stage=2,
+    )
 
 for key, path in files.items():
     shutil.copy2(path, path.with_name(path.name + f".bak-setu-{stamp}"))

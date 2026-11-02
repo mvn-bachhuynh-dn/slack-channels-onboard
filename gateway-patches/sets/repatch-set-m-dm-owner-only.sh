@@ -87,8 +87,15 @@ assert clause in s, "Set M: gate clause missing"
 # 'is_allowed_user(' use inside the body (the first real branch gate).
 i_def = s.index("async def handle_message(")
 i_gate = s.index(clause, i_def)
-i_first_allowed = s.index("is_allowed_user(", i_def)
-assert i_def < i_gate < i_first_allowed, "Set M: gate not positioned before first branch"
+i_end = s.find("\nasync def ", i_def + 1)
+i_first_allowed = s.find("is_allowed_user(", i_def, i_end if i_end != -1 else len(s))
+if i_first_allowed != -1:
+    assert i_def < i_gate < i_first_allowed, "Set M: gate not positioned before first branch"
+else:
+    # 0.11.0 moved the allow check out of handle_message: the gate must then be
+    # the FIRST `if` after the function's first executable lines.
+    i_first_if = s.find("\n    if ", s.index("_t0 = time.monotonic()", i_def))
+    assert i_first_if + 5 == i_gate, "Set M: gate not positioned before first branch"
 # and it must return (absolute block), not merely log
 tail = s[i_gate:i_gate+600]
 assert "\n        return\n" in tail, "Set M: gate does not return early"

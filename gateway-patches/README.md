@@ -1,6 +1,6 @@
 # Gateway patches
 
-On a **stock** Kiro Crew 0.9.0 or 0.10.0 gateway the app can write every binding, but a
+On a **stock** Kiro Crew 0.9.0 to 0.11.1 gateway the app can write every binding, but a
 Slack channel turn does not use it: the chat path passes the channel's agent
 alias to kiro-cli as a mode name and runs in a scratch directory instead of the
 agent's workspace. **Set B fixes that and is needed for the app's core
@@ -17,7 +17,7 @@ Without the optional sets, the app hides their features and their routes refuse.
   write inside one channel's workspace, and ask the owner in Slack for missing
   permissions. Review them like any security change.
 - **They patch the installed package in place**, by anchored text replacement.
-  They are written against **Kiro Crew 0.9.0 and 0.10.0**. On any other version an anchor
+  They are written against **Kiro Crew 0.9.0, 0.10.0, 0.11.0 and 0.11.1**. On any other version an anchor
   may not match: that set stops with `CHECK ANCHORS`, writes nothing, and
   `apply.sh` stops there. They are not a supported Kiro Crew feature.
 - **A Kiro Crew update overwrites them.** Re-run `apply.sh` after every update.
@@ -33,16 +33,20 @@ The app detects every feature at runtime, by the function the gateway exposes
 
 | App feature | Sets | Upstream status |
 |---|---|---|
-| **Channel turns use the agent and its workspace (core)** | B | fixed upstream by kirodotdev/KiroCrew#22858, which is in neither 0.9.0 nor 0.10.0; the set no-ops on a release that carries it |
+| **Channel turns use the agent and its workspace (core)** | B | fixed upstream by kirodotdev/KiroCrew#22858, which 0.11.0 carries; the set no-ops there |
 | Members (`slack.allowed_users`, read-only) | K, M, M2, O, O2, O3 | proposed in kirodotdev/KiroCrew#22759 |
 | Maintainers per channel (scoped write) | P, P3 | proposed in kirodotdev/KiroCrew#22759 |
 | Approved commands per channel | P2 | proposed in kirodotdev/KiroCrew#22759 |
 | Approved programs; owner asked in Slack | R, R2, R3 | proposed in kirodotdev/KiroCrew#22759 |
 | Open channels (every channel member, read-only) | Q, Q2 | proposed in kirodotdev/KiroCrew#22759 |
 | Workspace confinement for maintainer channels; a thread the owner opens runs unconfined and is owner-only | T (+ `sets/patch-src/kc_confine.py`) | proposed in kirodotdev/KiroCrew#22759 |
-| Agent backend per channel | U | issue kirodotdev/KiroCrew#21910, PR #16200 (open) |
+| Agent backend per channel | U | shipped upstream as kirodotdev/KiroCrew#25485, in 0.12.0; the set is needed up to 0.11.1 |
 | (support) | S: `KIROCREW_SLACK_TEAM_ID` in the agent env | PR kirodotdev/KiroCrew#22380, merged after 0.10.0; the set no-ops on a release that carries it |
 | (support) | V: the last word before a Slack tool card is no longer torn in two (`đơ` [card] `n.Next`) | issue kirodotdev/KiroCrew#21597; #21758 on main only adds a paragraph break, the set no-ops on a release that flushes before the card |
+| (support) | W: a turn run from a dashboard session linked to a Slack thread clears the thread's status and posts the "Finished in" footer, so the thread no longer looks stuck | not reported upstream yet |
+| (support) | X: a Slack thread linked to a crewmate's dashboard session no longer fails every turn with "Essential template '<name>': not found" | issue kirodotdev/KiroCrew#25187, fixed by #26119 in 0.12.0; needed up to 0.11.1 |
+| (support) | Y: a long answer split into several Slack posts closes and reopens a code block at the cut, so neither part loses its formatting | not reported upstream yet |
+| (support) | Z: local images in an answer mirrored from a linked dashboard session are uploaded to the thread, as the native Slack path does, instead of posted as `![…](/path)` text | not reported upstream yet |
 
 Every script's header explains what it changes, why, and how to roll it back.
 
@@ -59,7 +63,7 @@ bash gateway-patches/apply.sh --list   # the sets, in the order they run
 ```
 
 Pick only what you need with `--only` (sets still run in the fixed order).
-Combinations tested on pristine 0.9.0 and 0.10.0 trees:
+Combinations tested on pristine 0.9.0, 0.10.0, 0.11.0 and 0.11.1 trees:
 
 | You want | Command |
 |---|---|
@@ -87,6 +91,6 @@ clear `__pycache__`, restart. Or reinstall the package
 
 ## Tested
 
-CI applies every combination above, twice, to pristine `v0.9.0` and `v0.10.0`
-trees, and the full set runs on a live 0.10.0 gateway. Not tested on other
+CI applies every combination above, twice, to pristine `v0.9.0`, `v0.10.0`,
+`v0.11.0` and `v0.11.1` trees, and the full set runs on a live 0.11.1 gateway. Not tested on other
 versions or on Windows.
