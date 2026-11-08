@@ -6,6 +6,7 @@ rules drive the dashboard page, the background poller, and the tests.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # own member-memory path). False shares the default store.
     "dedicated_memory": True,
     "poll_secs": 300,
+    # Watch every GitHub repository found in a new channel's workspace with an
+    # hourly zero-token cron that posts only NEW failures, high/critical
+    # Dependabot alerts, stale pull requests and issues into that channel.
+    "repo_watch": True,
+    "repo_watch_secs": 3600,
 }
 
 _SLUG_RE = re.compile(r"[^a-z0-9_-]+")
@@ -54,6 +60,11 @@ def normalize_settings(raw: Any) -> dict[str, Any]:
     for key in ("thread_follow", "require_owner_member", "dedicated_memory"):
         if isinstance(raw.get(key), bool):
             out[key] = raw[key]
+    if isinstance(raw.get("repo_watch"), bool):
+        out["repo_watch"] = raw["repo_watch"]
+    watch_secs = raw.get("repo_watch_secs")
+    if isinstance(watch_secs, int) and not isinstance(watch_secs, bool):
+        out["repo_watch_secs"] = max(600, min(watch_secs, 86400))
     poll = raw.get("poll_secs")
     if isinstance(poll, int) and not isinstance(poll, bool):
         out["poll_secs"] = max(60, min(poll, 3600))
@@ -147,6 +158,71 @@ def plan_onboard(
         },
         "dedicated_memory": bool(settings["dedicated_memory"]),
     }
+
+
+# ------------------------------------------------------------ repo watch
+
+WATCH_JOB_PREFIX = "Repo watch: "
+WATCH_SCRIPT = "backend/repo_watch.py:run"
+_GITHUB_REMOTE_RES = (
+    # git@github.com:owner/name.git, including an ssh host alias such as github.com-work
+    re.compile(r"^(?:ssh://)?git@github\.com[\w.-]*[:/](?P<slug>[\w.-]+/[\w.-]+?)(?:\.git)?/?$"),
+    re.compile(r"^https?://(?:[^@/\s]+@)?github\.com/(?P<slug>[\w.-]+/[\w.-]+?)(?:\.git)?/?$"),
+)
+
+
+def github_repo(remote_url: Any) -> str | None:
+    """``owner/name`` of a GitHub remote URL, or ``None`` for anything else."""
+    if not isinstance(remote_url, str):
+        return None
+    url = remote_url.strip()
+    for pattern in _GITHUB_REMOTE_RES:
+        m = pattern.match(url)
+        if m:
+            return m.group("slug")
+    return None
+
+
+def watch_job_name(repo: str) -> str:
+    return f"{WATCH_JOB_PREFIX}{repo}"
+
+
+def watch_message(repo: str, name: str, channel_id: str) -> str:
+    """The JSON ``ctx.message`` the shipped repo_watch script reads."""
+    return json.dumps({"repo": repo, "name": name, "channel": channel_id}, sort_keys=True)
+
+
+def watch_channel(message: Any) -> str:
+    """The channel a watch job reports to ("" when *message* is not one of ours)."""
+    try:
+        data = json.loads(message)
+    except (TypeError, ValueError):
+        return ""
+    return str(data.get("channel", "")) if isinstance(data, dict) else ""
+
+
+def add_tracking(data: dict, channel_id: str) -> dict:
+    """config.json mutator: list *channel_id* in ``slack.tracking_channels``.
+
+    A channel must be tracked before ``send_message`` (and the watch reports)
+    may target it; without the entry the gateway refuses with "not a tracked
+    channel". Idempotent.
+    """
+    tracked = data.setdefault("slack", {}).setdefault("tracking_channels", [])
+    if not any(isinstance(t, dict) and t.get("channel_id") == channel_id for t in tracked):
+        tracked.append({"channel_id": channel_id})
+    return data
+
+
+def remove_tracking(data: dict, channel_id: str) -> dict:
+    """config.json mutator: drop *channel_id* from ``slack.tracking_channels``."""
+    slack = data.get("slack", {})
+    slack["tracking_channels"] = [
+        t
+        for t in slack.get("tracking_channels", []) or []
+        if not (isinstance(t, dict) and t.get("channel_id") == channel_id)
+    ]
+    return data
 
 
 def set_workspace(data: dict, key: str, ws_dir: str) -> dict:

@@ -27,6 +27,7 @@ import importlib
 import inspect
 import json
 import logging
+import subprocess
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -270,8 +271,15 @@ async def onboard(
     *,
     name: str | None = None,
     workspace_dir: str | None = None,
+    ctx: Any = None,
 ) -> dict:
-    """Provision workspace + agent (+ private memory) + binding for a channel."""
+    """Provision workspace + agent (+ private memory) + binding for a channel.
+
+    With *ctx* the channel is also made trackable and, when ``repo_watch`` is on,
+    every GitHub repository in its workspace gets an hourly watch cron. That step
+    is best effort: a failure is reported in ``watch_error`` and never undoes the
+    onboarding.
+    """
     plan = core.plan_onboard(
         config_dict(),
         channel_id=channel_id,
@@ -299,7 +307,17 @@ async def onboard(
         ws_dir,
         store,
     )
-    return dict(plan, workspace_dir=ws_dir, memory_store=store, channel_id=channel_id)
+    result = dict(plan, workspace_dir=ws_dir, memory_store=store, channel_id=channel_id)
+    if ctx is not None:
+        try:
+            result["watching"] = await attach_watch(
+                ctx, channel_id, plan["name"], ws_dir, settings
+            )
+        except Exception as exc:  # noqa: BLE001 - onboarding already succeeded
+            logger.warning("slack-channels-onboard: repo watch for %s failed: %s", channel_id, exc)
+            result["watching"] = []
+            result["watch_error"] = str(exc)[:200]
+    return result
 
 
 async def reconfigure(
@@ -308,6 +326,8 @@ async def reconfigure(
     workspace_dir: str | None = None,
     activation: str | None = None,
     thread_follow: bool | None = None,
+    ctx: Any = None,
+    settings: dict | None = None,
 ) -> dict:
     errors = core.validate_reconfigure(activation, thread_follow, workspace_dir)
     if errors:
@@ -316,6 +336,7 @@ async def reconfigure(
     binding = (cfg.get("slack", {}).get("channels", {}) or {}).get(channel_id)
     if binding is None:
         raise ValueError(f"channel {channel_id} is not onboarded")
+    watching: list[str] | None = None
     if workspace_dir is not None:
         agent = (cfg.get("agents", {}) or {}).get(binding.get("agent", ""))
         if not agent:
@@ -323,16 +344,27 @@ async def reconfigure(
         ws_key = agent.get("workspace") or binding["agent"]
         ws_dir = _check_workspace_dir(workspace_dir, create=False)
         await _write(lambda d: core.set_workspace(d, ws_key, ws_dir))
+        if ctx is not None and settings is not None:
+            # A new workspace usually means a different repository: watch that one.
+            try:
+                await detach_watch(ctx, channel_id)
+                watching = await attach_watch(ctx, channel_id, binding["agent"], ws_dir, settings)
+            except Exception as exc:  # noqa: BLE001 - the workspace change already succeeded
+                logger.warning("slack-channels-onboard: repo watch for %s failed: %s", channel_id, exc)
+                watching = []
     if activation is not None or thread_follow is not None:
         await _write(
             lambda d: core.set_binding(
                 d, channel_id, activation=activation, thread_follow=thread_follow
             )
         )
-    return {"channel_id": channel_id, "ok": True}
+    out: dict = {"channel_id": channel_id, "ok": True}
+    if watching is not None:
+        out["watching"] = watching
+    return out
 
 
-async def unbind(channel_id: str) -> dict:
+async def unbind(channel_id: str, ctx: Any = None) -> dict:
     """Remove the binding of a channel the bot is no longer in.
 
     Refused while the bot is still a member (that channel would silently stop
@@ -348,6 +380,10 @@ async def unbind(channel_id: str) -> dict:
     if any(c.get("id") == channel_id for c in bot):
         raise ValueError("the bot is still in this channel; remove it from the channel first")
     await _write(lambda d: core.remove_binding(d, channel_id))
+    removed_watches = 0
+    if ctx is not None:
+        await _write(lambda d: core.remove_tracking(d, channel_id))
+        removed_watches = await detach_watch(ctx, channel_id)
     async with _ROLES_LOCK:
         roles = read_roles()
         if channel_id in roles["channels"]:
@@ -355,8 +391,96 @@ async def unbind(channel_id: str) -> dict:
             await asyncio.to_thread(_write_roles_sync, roles)
     _audit("unbind", f"channel={channel_id}")
     logger.info("slack-channels-onboard: unbound %s", channel_id)
-    return {"channel_id": channel_id, "ok": True}
+    out: dict = {"channel_id": channel_id, "ok": True}
+    if ctx is not None:
+        out["removed_watches"] = removed_watches
+    return out
 
+
+
+# ------------------------------------------------------------- repo watch
+
+_MAX_WATCHED_REPOS = 10
+_SKIP_DIRS = {"node_modules", "vendor", "dist", "build", "target"}
+
+
+def _git_origin(path: Path) -> str:
+    proc = subprocess.run(
+        ["git", "-C", str(path), "remote", "get-url", "origin"],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def find_github_repos(ws_dir: str) -> list[str]:
+    """``owner/name`` of the GitHub repositories at *ws_dir* or one level below it."""
+    root = Path(ws_dir)
+    candidates = [root]
+    try:
+        candidates += sorted(
+            d
+            for d in root.iterdir()
+            if d.is_dir() and not d.name.startswith(".") and d.name not in _SKIP_DIRS
+        )
+    except OSError:
+        return []
+    repos: list[str] = []
+    for path in candidates:
+        if not (path / ".git").exists():
+            continue
+        slug = core.github_repo(_git_origin(path))
+        if slug and slug not in repos:
+            repos.append(slug)
+        if len(repos) >= _MAX_WATCHED_REPOS:
+            break
+    return repos
+
+
+async def attach_watch(ctx: Any, channel_id: str, name: str, ws_dir: str, settings: dict) -> list[str]:
+    """Make *channel_id* trackable and watch the repositories in its workspace.
+
+    Returns the ``owner/name`` list now watched. The cron jobs belong to this
+    app (``ctx.cron``), so uninstalling the app removes them. A job that already
+    exists for the same repository is left alone.
+    """
+    await _write(lambda d: core.add_tracking(d, channel_id))
+    if not settings.get("repo_watch"):
+        return []
+    cron = getattr(ctx, "cron", None)
+    if cron is None:
+        logger.warning("slack-channels-onboard: no cron permission; repo watch skipped")
+        return []
+    repos = await asyncio.to_thread(find_github_repos, ws_dir)
+    for repo in repos:
+        await cron.add_job_if_absent_async(
+            core.watch_job_name(repo),
+            core.watch_message(repo, name, channel_id),
+            every_secs=int(settings["repo_watch_secs"]),
+            script=core.WATCH_SCRIPT,
+            persistent_session=False,
+            silent=True,
+        )
+    _audit("repo_watch", f"channel={channel_id} repos={','.join(repos)}")
+    return repos
+
+
+async def detach_watch(ctx: Any, channel_id: str) -> int:
+    """Remove this app's watch jobs that report to *channel_id*."""
+    cron = getattr(ctx, "cron", None)
+    if cron is None:
+        return 0
+    removed = 0
+    for job in list(cron.list_jobs()):
+        if not str(job.name).startswith(core.WATCH_JOB_PREFIX):
+            continue
+        if core.watch_channel(job.message) != channel_id:
+            continue
+        if await cron.remove_job_async(job.id):
+            removed += 1
+    return removed
 
 
 # ------------------------------------------------------- people (slice 4)

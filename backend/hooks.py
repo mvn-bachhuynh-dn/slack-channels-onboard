@@ -78,7 +78,7 @@ async def scan_once(ctx: Any) -> list[str]:
         if attempts >= _MAX_ATTEMPTS:
             continue
         try:
-            r = await gateway_ops.onboard(cid, cname, settings)
+            r = await gateway_ops.onboard(cid, cname, settings, ctx=ctx)
         except Exception as exc:  # noqa: BLE001
             state["attempts"][cid] = attempts + 1
             logger.warning("slack-channels-onboard: auto-onboard %s failed: %s", cid, exc)
@@ -96,7 +96,13 @@ async def scan_once(ctx: Any) -> list[str]:
             f"• memory: `{r['memory_store']}`\n"
             f"• activation: `{r['binding']['activation']}`, thread_follow: "
             f"`{r['binding']['thread_follow']}`\n"
-            "Change it in Dashboard → Slack Channels Onboard (e.g. point the workspace at an existing repo)."
+            + (
+                "• watching: " + ", ".join(f"`{x}`" for x in r["watching"]) + "\n"
+                if r.get("watching")
+                else ""
+            )
+            + "Change it in Dashboard → Slack Channels Onboard (e.g. point the workspace at an existing repo; "
+            "its GitHub repositories are then watched hourly)."
         )
     _save(ctx, state)
     return done
