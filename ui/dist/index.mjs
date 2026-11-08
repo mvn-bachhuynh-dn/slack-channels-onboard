@@ -1,7 +1,7 @@
-import { jsxs as c, Fragment as j, jsx as n } from "react/jsx-runtime";
+import { jsxs as c, Fragment as F, jsx as n } from "react/jsx-runtime";
 import { useAppApi as S } from "@kirocrew/app-sdk";
-import { PageHeader as q, Btn as _, Card as N, StatCard as I, CardTitle as M, EmptyState as F, Badge as H, Input as L, Toggle as A } from "@kirocrew/app-sdk/ui";
-import { useState as f, useCallback as G, useEffect as B } from "react";
+import { PageHeader as G, Btn as _, Card as N, StatCard as I, CardTitle as $, EmptyState as j, Badge as H, Input as A, Toggle as M } from "@kirocrew/app-sdk/ui";
+import { useState as f, useCallback as q, useEffect as B } from "react";
 const E = {
   subtitle: "One agent, workspace and private memory per Slack channel",
   refresh: "Refresh",
@@ -104,6 +104,8 @@ const E = {
   defaultFollow: "Default thread_follow",
   ownerMember: "Only when the owner is in the channel",
   dedicatedMemory: "Private memory per channel",
+  repoWatch: "Watch the channel's GitHub repositories",
+  repoWatchSecs: "Repository check interval (seconds)",
   pollSecs: "Poll interval (seconds, 60–3600)",
   saveSettings: "Save settings",
   modeHelp: "auto: create the agent as soon as the bot joins a new channel, then DM you. notify: DM only. off: no background polling."
@@ -201,6 +203,8 @@ const E = {
   defaultFollow: "thread_follow mặc định",
   ownerMember: "Chỉ khi owner ở trong channel",
   dedicatedMemory: "Memory riêng cho mỗi channel",
+  repoWatch: "Theo dõi các repo GitHub của channel",
+  repoWatchSecs: "Chu kỳ kiểm tra repo (giây)",
   pollSecs: "Chu kỳ quét (giây, 60–3600)",
   saveSettings: "Lưu cài đặt",
   modeHelp: "auto: tự tạo agent khi bot được thêm vào channel mới rồi DM cho bạn. notify: chỉ DM báo. off: tắt quét nền."
@@ -208,12 +212,12 @@ const E = {
 function z() {
   return [document.documentElement.lang, ...navigator.languages || [], navigator.language].some((t) => (t || "").toLowerCase().startsWith("vi")) ? "vi" : "en";
 }
-const a = z() === "vi" ? { ...E, ...V } : E, w = "/api/apps/slack-channels-onboard", R = "https://github.com/mvn-bachhuynh-dn/slack-channels-onboard/blob/main/gateway-patches/README.md", U = ["mention", "always", "observe", "review", "off"];
-function D({ value: e, options: t, onChange: d, label: l }) {
+const a = z() === "vi" ? { ...E, ...V } : E, w = "/api/apps/slack-channels-onboard", R = "https://github.com/mvn-bachhuynh-dn/slack-channels-onboard/blob/main/gateway-patches/README.md", W = ["mention", "always", "observe", "review", "off"];
+function D({ value: e, options: t, onChange: d, label: s }) {
   return /* @__PURE__ */ n(
     "select",
     {
-      "aria-label": l,
+      "aria-label": s,
       className: "bg-[var(--bg-input,transparent)] border border-[var(--border)] rounded px-2 py-1 text-sm",
       value: e,
       onChange: (i) => d(i.target.value),
@@ -222,18 +226,18 @@ function D({ value: e, options: t, onChange: d, label: l }) {
   );
 }
 const P = "__inherit__", O = (e) => e || "kiro";
-function Y({ row: e, backends: t, hasMaintainers: d, onSaved: l, onError: i }) {
-  const g = S(), [s, o] = f(!1), y = e.acp_backend ?? null, p = y === null || t.options.some((u) => u.id === y), v = a.backendInherit(O(t.default)), h = async (u) => {
-    const m = u === P ? null : u, k = m === null ? v : O(m), x = e.agent || "";
-    if (window.confirm(a.backendConfirm(x, k, d && m !== null && m !== "claude"))) {
-      o(!0);
+function Y({ row: e, backends: t, hasMaintainers: d, onSaved: s, onError: i }) {
+  const p = S(), [o, l] = f(!1), y = e.acp_backend ?? null, g = y === null || t.options.some((u) => u.id === y), v = a.backendInherit(O(t.default)), m = async (u) => {
+    const h = u === P ? null : u, k = h === null ? v : O(h), x = e.agent || "";
+    if (window.confirm(a.backendConfirm(x, k, d && h !== null && h !== "claude"))) {
+      l(!0);
       try {
-        const b = await g.put(`${w}/backend`, { channel_id: e.id, acp_backend: m });
-        l(a.backendSaved(b.agent, k, b.channels.filter((r) => r !== e.id).length));
+        const b = await p.put(`${w}/backend`, { channel_id: e.id, acp_backend: h });
+        s(a.backendSaved(b.agent, k, b.channels.filter((r) => r !== e.id).length));
       } catch (b) {
         i(String(b));
       } finally {
-        o(!1);
+        l(!1);
       }
     }
   };
@@ -243,9 +247,9 @@ function Y({ row: e, backends: t, hasMaintainers: d, onSaved: l, onError: i }) {
       "aria-label": a.backendAria(e.agent || ""),
       className: "bg-[var(--bg-input,transparent)] border border-[var(--border)] rounded px-2 py-1 text-sm",
       value: y === null ? P : y,
-      disabled: s || !e.agent,
+      disabled: o || !e.agent,
       onChange: (u) => {
-        h(u.target.value);
+        m(u.target.value);
       },
       children: [
         /* @__PURE__ */ n("option", { value: P, children: v }),
@@ -253,7 +257,7 @@ function Y({ row: e, backends: t, hasMaintainers: d, onSaved: l, onError: i }) {
           u.label,
           u.installed === "missing" ? a.backendMissing : ""
         ] }, u.id || "kiro")),
-        !p && y !== null && /* @__PURE__ */ c("option", { value: y, children: [
+        !g && y !== null && /* @__PURE__ */ c("option", { value: y, children: [
           O(y),
           a.backendUnusable
         ] })
@@ -261,39 +265,39 @@ function Y({ row: e, backends: t, hasMaintainers: d, onSaved: l, onError: i }) {
     }
   );
 }
-function J({ row: e, open: t, canOpen: d, backends: l, hasMaintainers: i, onSaved: g, onNotice: s, onError: o }) {
-  const y = S(), [p, v] = f(e.workspace_dir || ""), [h, u] = f(e.activation || "mention"), [m, k] = f(e.thread_follow ?? !0), [x, b] = f(!1), r = p !== (e.workspace_dir || "") || h !== e.activation || m !== e.thread_follow, $ = async () => {
+function J({ row: e, open: t, canOpen: d, backends: s, hasMaintainers: i, onSaved: p, onNotice: o, onError: l }) {
+  const y = S(), [g, v] = f(e.workspace_dir || ""), [m, u] = f(e.activation || "mention"), [h, k] = f(e.thread_follow ?? !0), [x, b] = f(!1), r = g !== (e.workspace_dir || "") || m !== e.activation || h !== e.thread_follow, T = async () => {
     b(!0);
     try {
       await y.post(`${w}/reconfigure`, {
         channel_id: e.id,
-        workspace_dir: p !== (e.workspace_dir || "") ? p : void 0,
-        activation: h !== e.activation ? h : void 0,
-        thread_follow: m !== e.thread_follow ? m : void 0
-      }), g();
+        workspace_dir: g !== (e.workspace_dir || "") ? g : void 0,
+        activation: m !== e.activation ? m : void 0,
+        thread_follow: h !== e.thread_follow ? h : void 0
+      }), p();
     } catch (C) {
-      o(String(C));
+      l(String(C));
     } finally {
       b(!1);
     }
-  }, X = async (C) => {
+  }, U = async (C) => {
     if (!(C && !window.confirm(a.openConfirm(e.name || e.id)))) {
       b(!0);
       try {
-        await y.put(`${w}/open`, { channel_id: e.id, open: C }), g();
-      } catch (W) {
-        o(String(W));
+        await y.put(`${w}/open`, { channel_id: e.id, open: C }), p();
+      } catch (K) {
+        l(String(K));
       } finally {
         b(!1);
       }
     }
-  }, K = async () => {
+  }, X = async () => {
     if (window.confirm(a.unbindConfirm(e.name || e.id))) {
       b(!0);
       try {
-        await y.post(`${w}/unbind`, { channel_id: e.id }), g();
+        await y.post(`${w}/unbind`, { channel_id: e.id }), p();
       } catch (C) {
-        o(String(C));
+        l(String(C));
       } finally {
         b(!1);
       }
@@ -308,7 +312,7 @@ function J({ row: e, open: t, canOpen: d, backends: l, hasMaintainers: i, onSave
       /* @__PURE__ */ n("div", { className: "text-xs text-muted", children: e.id }),
       !e.bot_member && /* @__PURE__ */ c("div", { className: "mt-1 flex items-center gap-2", children: [
         /* @__PURE__ */ n(H, { variant: "warn", children: a.botLeft }),
-        /* @__PURE__ */ n(_, { danger: !0, disabled: x, onClick: K, children: a.unbind })
+        /* @__PURE__ */ n(_, { danger: !0, disabled: x, onClick: X, children: a.unbind })
       ] })
     ] }),
     /* @__PURE__ */ c("td", { className: "py-2 pr-3", children: [
@@ -318,25 +322,25 @@ function J({ row: e, open: t, canOpen: d, backends: l, hasMaintainers: i, onSave
         e.memory_store || "—"
       ] })
     ] }),
-    (l == null ? void 0 : l.supported) && /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(Y, { row: e, backends: l, hasMaintainers: i, onSaved: s, onError: o }) }),
-    /* @__PURE__ */ n("td", { className: "py-2 pr-3 w-[38%] min-w-[320px]", children: /* @__PURE__ */ n(L, { "aria-label": a.workspaceOf(e.name || e.id), title: p, className: "w-full font-mono text-xs", value: p, onChange: (C) => v(C.target.value), disabled: !e.agent }) }),
-    /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(D, { label: "Activation", value: h, options: U, onChange: u }) }),
-    /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(A, { checked: m, onChange: k, label: "thread_follow" }) }),
-    d && /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(A, { checked: t, onChange: (C) => {
-      X(C);
+    (s == null ? void 0 : s.supported) && /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(Y, { row: e, backends: s, hasMaintainers: i, onSaved: o, onError: l }) }),
+    /* @__PURE__ */ n("td", { className: "py-2 pr-3 w-[38%] min-w-[320px]", children: /* @__PURE__ */ n(A, { "aria-label": a.workspaceOf(e.name || e.id), title: g, className: "w-full font-mono text-xs", value: g, onChange: (C) => v(C.target.value), disabled: !e.agent }) }),
+    /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(D, { label: "Activation", value: m, options: W, onChange: u }) }),
+    /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(M, { checked: h, onChange: k, label: "thread_follow" }) }),
+    d && /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: /* @__PURE__ */ n(M, { checked: t, onChange: (C) => {
+      U(C);
     }, label: a.openToggle(e.name || e.id) }) }),
-    /* @__PURE__ */ n("td", { className: "py-2 w-[72px]", children: r && /* @__PURE__ */ n(_, { primary: !0, disabled: x, onClick: $, children: x ? a.saving : a.save }) })
+    /* @__PURE__ */ n("td", { className: "py-2 w-[72px]", children: r && /* @__PURE__ */ n(_, { primary: !0, disabled: x, onClick: T, children: x ? a.saving : a.save }) })
   ] });
 }
-function Q({ row: e, settings: t, onDone: d, onError: l }) {
-  const i = S(), [g, s] = f(!1), o = async () => {
-    s(!0);
+function Q({ row: e, settings: t, onDone: d, onError: s }) {
+  const i = S(), [p, o] = f(!1), l = async () => {
+    o(!0);
     try {
       await i.post(`${w}/onboard`, { channel_id: e.id, channel_name: e.name }), d();
     } catch (y) {
-      l(String(y));
+      s(String(y));
     } finally {
-      s(!1);
+      o(!1);
     }
   };
   return /* @__PURE__ */ c("tr", { className: "border-t border-[var(--border)]", "data-testid": `pending-${e.id}`, children: [
@@ -348,65 +352,65 @@ function Q({ row: e, settings: t, onDone: d, onError: l }) {
       /* @__PURE__ */ n("div", { className: "text-xs text-muted", children: e.id })
     ] }),
     /* @__PURE__ */ n("td", { className: "py-2 pr-3 text-sm text-muted", children: /* @__PURE__ */ n("span", { className: "font-mono", children: a.pendingPlan(e.name || e.id, t.workspace_root, t.dedicated_memory) }) }),
-    /* @__PURE__ */ n("td", { className: "py-2", children: /* @__PURE__ */ n(_, { primary: !0, disabled: g, onClick: o, children: g ? a.creating : "Onboard" }) })
+    /* @__PURE__ */ n("td", { className: "py-2", children: /* @__PURE__ */ n(_, { primary: !0, disabled: p, onClick: l, children: p ? a.creating : "Onboard" }) })
   ] });
 }
-const Z = { members: !1, maintainers: !1, commands: !1, programs: !1, open_channel: !1, confinement: !1, any: !1 }, T = (e, t) => e && (e.display || e.name) || t;
+const Z = { members: !1, maintainers: !1, commands: !1, programs: !1, open_channel: !1, confinement: !1, any: !1 }, L = (e, t) => e && (e.display || e.name) || t;
 function ee({ people: e, onSaved: t, onError: d }) {
-  const l = S(), [i, g] = f(""), [s, o] = f(!1), y = async (h) => {
-    o(!0);
+  const s = S(), [i, p] = f(""), [o, l] = f(!1), y = async (m) => {
+    l(!0);
     try {
-      const u = await l.put(`${w}/members`, { members: h.map(({ slack_id: m, name: k }) => ({ slack_id: m, name: k })) });
+      const u = await s.put(`${w}/members`, { members: m.map(({ slack_id: h, name: k }) => ({ slack_id: h, name: k })) });
       t(u.hot_applied ? a.savedLive : a.savedNeedsRestart);
     } catch (u) {
       d(String(u));
     } finally {
-      o(!1);
+      l(!1);
     }
-  }, p = async () => {
-    const h = i.trim().toUpperCase();
-    if (h) {
-      o(!0);
+  }, g = async () => {
+    const m = i.trim().toUpperCase();
+    if (m) {
+      l(!0);
       try {
-        const u = await l.post(`${w}/resolve-user`, { slack_id: h });
-        g(""), await y([...e.members, { slack_id: u.slack_id, name: u.name }]);
+        const u = await s.post(`${w}/resolve-user`, { slack_id: m });
+        p(""), await y([...e.members, { slack_id: u.slack_id, name: u.name }]);
       } catch (u) {
-        d(String(u)), o(!1);
+        d(String(u)), l(!1);
       }
     }
-  }, v = (h) => {
-    const u = e.members.find((m) => m.slack_id === h);
-    window.confirm(a.removeMemberConfirm(T(u, h))) && y(e.members.filter((m) => m.slack_id !== h));
+  }, v = (m) => {
+    const u = e.members.find((h) => h.slack_id === m);
+    window.confirm(a.removeMemberConfirm(L(u, m))) && y(e.members.filter((h) => h.slack_id !== m));
   };
   return /* @__PURE__ */ c(N, { children: [
-    /* @__PURE__ */ n(M, { children: a.membersTitle }),
-    /* @__PURE__ */ n("ul", { className: "text-xs text-muted mb-2 list-disc pl-5 space-y-0.5", children: a.membersHelp.map((h) => /* @__PURE__ */ n("li", { children: h }, h)) }),
+    /* @__PURE__ */ n($, { children: a.membersTitle }),
+    /* @__PURE__ */ n("ul", { className: "text-xs text-muted mb-2 list-disc pl-5 space-y-0.5", children: a.membersHelp.map((m) => /* @__PURE__ */ n("li", { children: m }, m)) }),
     /* @__PURE__ */ n("table", { className: "w-full text-left text-sm", children: /* @__PURE__ */ c("tbody", { children: [
       /* @__PURE__ */ c("tr", { className: "border-t border-[var(--border)]", children: [
         /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: e.owner.display || e.owner.slack_id }),
         /* @__PURE__ */ n("td", { className: "py-2 pr-3 font-mono text-xs text-muted", children: e.owner.slack_id }),
         /* @__PURE__ */ n("td", { className: "py-2", children: /* @__PURE__ */ n(H, { variant: "ok", children: a.ownerBadge }) })
       ] }),
-      e.members.map((h) => /* @__PURE__ */ c("tr", { className: "border-t border-[var(--border)]", "data-testid": `member-${h.slack_id}`, children: [
-        /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: T(h, h.slack_id) }),
-        /* @__PURE__ */ n("td", { className: "py-2 pr-3 font-mono text-xs text-muted", children: h.slack_id }),
-        /* @__PURE__ */ n("td", { className: "py-2", children: /* @__PURE__ */ n(_, { disabled: s, onClick: () => v(h.slack_id), children: a.remove }) })
-      ] }, h.slack_id))
+      e.members.map((m) => /* @__PURE__ */ c("tr", { className: "border-t border-[var(--border)]", "data-testid": `member-${m.slack_id}`, children: [
+        /* @__PURE__ */ n("td", { className: "py-2 pr-3", children: L(m, m.slack_id) }),
+        /* @__PURE__ */ n("td", { className: "py-2 pr-3 font-mono text-xs text-muted", children: m.slack_id }),
+        /* @__PURE__ */ n("td", { className: "py-2", children: /* @__PURE__ */ n(_, { disabled: o, onClick: () => v(m.slack_id), children: a.remove }) })
+      ] }, m.slack_id))
     ] }) }),
     /* @__PURE__ */ c("div", { className: "mt-3 flex gap-2 items-center", children: [
-      /* @__PURE__ */ n(L, { "aria-label": a.addMemberLabel, placeholder: a.addMemberPlaceholder, value: i, onChange: (h) => g(h.target.value) }),
-      /* @__PURE__ */ n(_, { primary: !!i.trim(), disabled: s || !i.trim(), onClick: p, children: s ? a.saving : a.addMember })
+      /* @__PURE__ */ n(A, { "aria-label": a.addMemberLabel, placeholder: a.addMemberPlaceholder, value: i, onChange: (m) => p(m.target.value) }),
+      /* @__PURE__ */ n(_, { primary: !!i.trim(), disabled: o || !i.trim(), onClick: g, children: o ? a.saving : a.addMember })
     ] }),
     /* @__PURE__ */ n("p", { className: "text-xs text-muted mt-2", children: a.memberIdHint })
   ] });
 }
-function ne({ ch: e, members: t, catalog: d, caps: l, onSaved: i, onError: g }) {
-  const s = S(), [o, y] = f(!1), [p, v] = f(""), [h, u] = f(!1), m = new Map(t.map((r) => [r.slack_id, r])), k = t.filter((r) => !e.maintainers.includes(r.slack_id)), x = e.commands.length > 0 || e.programs.length > 0, b = async (r) => {
+function ne({ ch: e, members: t, catalog: d, caps: s, onSaved: i, onError: p }) {
+  const o = S(), [l, y] = f(!1), [g, v] = f(""), [m, u] = f(!1), h = new Map(t.map((r) => [r.slack_id, r])), k = t.filter((r) => !e.maintainers.includes(r.slack_id)), x = e.commands.length > 0 || e.programs.length > 0, b = async (r) => {
     y(!0);
     try {
-      await s.put(`${w}/maintainers`, { channel_id: e.id, maintainers: r }), i(a.maintainersSaved);
-    } catch ($) {
-      g(String($));
+      await o.put(`${w}/maintainers`, { channel_id: e.id, maintainers: r }), i(a.maintainersSaved);
+    } catch (T) {
+      p(String(T));
     } finally {
       y(!1);
     }
@@ -422,30 +426,30 @@ function ne({ ch: e, members: t, catalog: d, caps: l, onSaved: i, onError: g }) 
       ] }),
       /* @__PURE__ */ c("div", { className: "flex flex-wrap gap-1 flex-1 min-w-[160px]", children: [
         e.maintainers.map((r) => /* @__PURE__ */ c("span", { className: "inline-flex items-center gap-1", children: [
-          /* @__PURE__ */ n(H, { variant: "aim", children: T(m.get(r), r) }),
+          /* @__PURE__ */ n(H, { variant: "aim", children: L(h.get(r), r) }),
           /* @__PURE__ */ n(
             "button",
             {
               type: "button",
-              "aria-label": a.removeMaintainer(T(m.get(r), r)),
+              "aria-label": a.removeMaintainer(L(h.get(r), r)),
               className: "text-xs text-muted hover:text-danger",
-              disabled: o,
-              onClick: () => b(e.maintainers.filter(($) => $ !== r)),
+              disabled: l,
+              onClick: () => b(e.maintainers.filter((T) => T !== r)),
               children: "✕"
             }
           )
         ] }, r)),
         e.maintainers.length === 0 && /* @__PURE__ */ n("span", { className: "text-xs text-muted", children: a.noMaintainer })
       ] }),
-      l.commands && (e.maintainers.length > 0 || x) && /* @__PURE__ */ n(
+      s.commands && (e.maintainers.length > 0 || x) && /* @__PURE__ */ n(
         "button",
         {
           type: "button",
           className: "text-xs text-accent hover:underline",
-          "aria-expanded": h,
+          "aria-expanded": m,
           onClick: () => u((r) => !r),
           "data-testid": `maint-toggle-${e.id}`,
-          children: a.rulesSummary(e.commands.length, e.programs.length, h)
+          children: a.rulesSummary(e.commands.length, e.programs.length, m)
         }
       ),
       /* @__PURE__ */ c("div", { className: "flex gap-2 items-center", children: [
@@ -454,172 +458,176 @@ function ne({ ch: e, members: t, catalog: d, caps: l, onSaved: i, onError: g }) 
           {
             "aria-label": a.addMaintainerLabel(e.name || e.id),
             className: "bg-[var(--bg-input,transparent)] border border-[var(--border)] rounded px-2 py-1 text-sm",
-            value: p,
+            value: g,
             onChange: (r) => v(r.target.value),
-            disabled: o || k.length === 0 || !e.workspace_dir,
+            disabled: l || k.length === 0 || !e.workspace_dir,
             children: [
               /* @__PURE__ */ n("option", { value: "", children: k.length ? a.addMaintainer : a.noMoreMembers }),
-              k.map((r) => /* @__PURE__ */ n("option", { value: r.slack_id, children: T(r, r.slack_id) }, r.slack_id))
+              k.map((r) => /* @__PURE__ */ n("option", { value: r.slack_id, children: L(r, r.slack_id) }, r.slack_id))
             ]
           }
         ),
-        p && /* @__PURE__ */ n(_, { primary: !0, disabled: o, onClick: () => {
-          b([...e.maintainers, p]), v("");
+        g && /* @__PURE__ */ n(_, { primary: !0, disabled: l, onClick: () => {
+          b([...e.maintainers, g]), v("");
         }, children: a.add })
       ] })
     ] }),
-    h && l.commands && /* @__PURE__ */ n(ae, { ch: e, catalog: d, caps: l, onSaved: i, onError: g })
+    m && s.commands && /* @__PURE__ */ n(ae, { ch: e, catalog: d, caps: s, onSaved: i, onError: p })
   ] });
 }
-function ae({ ch: e, catalog: t, caps: d, onSaved: l, onError: i }) {
-  const g = S(), [s, o] = f(e.commands), [y, p] = f(!1), v = s.slice().sort().join(",") !== e.commands.slice().sort().join(","), h = (m, k) => o((x) => k ? [...x.filter((b) => b !== m), m] : x.filter((b) => b !== m)), u = async () => {
-    if (!(s.includes("deploy") && !e.commands.includes("deploy") && !window.confirm(a.deployConfirm))) {
-      p(!0);
+function ae({ ch: e, catalog: t, caps: d, onSaved: s, onError: i }) {
+  const p = S(), [o, l] = f(e.commands), [y, g] = f(!1), v = o.slice().sort().join(",") !== e.commands.slice().sort().join(","), m = (h, k) => l((x) => k ? [...x.filter((b) => b !== h), h] : x.filter((b) => b !== h)), u = async () => {
+    if (!(o.includes("deploy") && !e.commands.includes("deploy") && !window.confirm(a.deployConfirm))) {
+      g(!0);
       try {
-        await g.put(`${w}/commands`, { channel_id: e.id, commands: s }), l(a.commandsSaved);
-      } catch (m) {
-        i(String(m));
+        await p.put(`${w}/commands`, { channel_id: e.id, commands: o }), s(a.commandsSaved);
+      } catch (h) {
+        i(String(h));
       } finally {
-        p(!1);
+        g(!1);
       }
     }
   };
   return /* @__PURE__ */ c("div", { className: "mt-2 ml-2 pl-3 border-l-2 border-[var(--border)]", "data-testid": `cmds-${e.id}`, children: [
     /* @__PURE__ */ n("div", { className: "text-xs text-muted mb-1", children: a.commandsHelp }),
-    /* @__PURE__ */ n("div", { className: "flex flex-wrap gap-x-4 gap-y-1", children: t.map((m) => /* @__PURE__ */ c("label", { className: "inline-flex items-center gap-1 text-sm", title: m.example, children: [
-      /* @__PURE__ */ n("input", { type: "checkbox", checked: s.includes(m.id), disabled: y, onChange: (k) => h(m.id, k.target.checked) }),
-      m.label
-    ] }, m.id)) }),
+    /* @__PURE__ */ n("div", { className: "flex flex-wrap gap-x-4 gap-y-1", children: t.map((h) => /* @__PURE__ */ c("label", { className: "inline-flex items-center gap-1 text-sm", title: h.example, children: [
+      /* @__PURE__ */ n("input", { type: "checkbox", checked: o.includes(h.id), disabled: y, onChange: (k) => m(h.id, k.target.checked) }),
+      h.label
+    ] }, h.id)) }),
     v && /* @__PURE__ */ n("div", { className: "mt-2", children: /* @__PURE__ */ n(_, { primary: !0, disabled: y, onClick: u, children: y ? a.saving : a.saveCommands }) }),
-    d.programs && /* @__PURE__ */ n(te, { ch: e, onSaved: l, onError: i })
+    d.programs && /* @__PURE__ */ n(te, { ch: e, onSaved: s, onError: i })
   ] });
 }
 function te({ ch: e, onSaved: t, onError: d }) {
-  const l = S(), [i, g] = f(""), [s, o] = f(!1), y = async (p) => {
-    o(!0);
+  const s = S(), [i, p] = f(""), [o, l] = f(!1), y = async (g) => {
+    l(!0);
     try {
-      await l.put(`${w}/programs`, { channel_id: e.id, programs: p }), t(a.programsSaved);
+      await s.put(`${w}/programs`, { channel_id: e.id, programs: g }), t(a.programsSaved);
     } catch (v) {
       d(String(v));
     } finally {
-      o(!1);
+      l(!1);
     }
   };
   return /* @__PURE__ */ c("div", { className: "mt-3", children: [
     /* @__PURE__ */ n("div", { className: "text-xs text-muted mb-1", children: a.programsHelp }),
     /* @__PURE__ */ c("div", { className: "flex flex-wrap gap-2 items-center", children: [
-      e.programs.map((p) => /* @__PURE__ */ c("span", { className: "inline-flex items-center gap-1", children: [
-        /* @__PURE__ */ n(H, { variant: "aim", children: p }),
+      e.programs.map((g) => /* @__PURE__ */ c("span", { className: "inline-flex items-center gap-1", children: [
+        /* @__PURE__ */ n(H, { variant: "aim", children: g }),
         /* @__PURE__ */ n(
           "button",
           {
             type: "button",
-            "aria-label": a.removeProgram(p),
+            "aria-label": a.removeProgram(g),
             className: "text-xs text-muted hover:text-danger",
-            disabled: s,
+            disabled: o,
             onClick: () => {
-              y(e.programs.filter((v) => v !== p));
+              y(e.programs.filter((v) => v !== g));
             },
             children: "✕"
           }
         )
-      ] }, p)),
-      /* @__PURE__ */ n(L, { "aria-label": a.addProgramLabel(e.name || e.id), placeholder: a.programsPlaceholder, className: "max-w-[220px]", value: i, onChange: (p) => g(p.target.value) }),
-      i.trim() && /* @__PURE__ */ n(_, { primary: !0, disabled: s, onClick: () => {
-        const p = i.trim();
-        g(""), y([...e.programs, p]);
+      ] }, g)),
+      /* @__PURE__ */ n(A, { "aria-label": a.addProgramLabel(e.name || e.id), placeholder: a.programsPlaceholder, className: "max-w-[220px]", value: i, onChange: (g) => p(g.target.value) }),
+      i.trim() && /* @__PURE__ */ n(_, { primary: !0, disabled: o, onClick: () => {
+        const g = i.trim();
+        p(""), y([...e.programs, g]);
       }, children: a.add })
     ] })
   ] });
 }
-function re({ people: e, caps: t, onSaved: d, onError: l }) {
-  const i = (s) => s.maintainers.length ? 0 : s.commands.length || s.programs.length ? 1 : 2, g = [...e.channels].sort((s, o) => i(s) - i(o));
+function re({ people: e, caps: t, onSaved: d, onError: s }) {
+  const i = (o) => o.maintainers.length ? 0 : o.commands.length || o.programs.length ? 1 : 2, p = [...e.channels].sort((o, l) => i(o) - i(l));
   return /* @__PURE__ */ c(N, { children: [
-    /* @__PURE__ */ n(M, { children: a.maintainersTitle }),
-    /* @__PURE__ */ n("ul", { className: "text-xs text-muted mb-2 list-disc pl-5 space-y-0.5", children: (t.confinement ? a.maintainersHelpConfined : a.maintainersHelp).map((s) => /* @__PURE__ */ n("li", { children: s }, s)) }),
-    /* @__PURE__ */ n("div", { className: "text-sm", children: g.map((s) => /* @__PURE__ */ n(
+    /* @__PURE__ */ n($, { children: a.maintainersTitle }),
+    /* @__PURE__ */ n("ul", { className: "text-xs text-muted mb-2 list-disc pl-5 space-y-0.5", children: (t.confinement ? a.maintainersHelpConfined : a.maintainersHelp).map((o) => /* @__PURE__ */ n("li", { children: o }, o)) }),
+    /* @__PURE__ */ n("div", { className: "text-sm", children: p.map((o) => /* @__PURE__ */ n(
       ne,
       {
-        ch: s,
+        ch: o,
         members: e.members,
         catalog: e.command_catalog,
         caps: t,
         onSaved: d,
-        onError: l
+        onError: s
       },
-      `${s.id}:${s.maintainers.join(",")}:${s.commands.join(",")}:${s.programs.join(",")}`
+      `${o.id}:${o.maintainers.join(",")}:${o.commands.join(",")}:${o.programs.join(",")}`
     )) }),
     /* @__PURE__ */ n("p", { className: "text-xs text-muted mt-2 font-mono", children: e.roles_path })
   ] });
 }
 function ie({ settings: e, onSaved: t, onError: d }) {
-  const l = S(), [i, g] = f(e);
-  B(() => g(e), [e]);
-  const s = async () => {
+  const s = S(), [i, p] = f(e);
+  B(() => p(e), [e]);
+  const o = async () => {
     try {
-      await l.put(`${w}/settings`, i), t();
-    } catch (o) {
-      d(String(o));
+      await s.put(`${w}/settings`, i), t();
+    } catch (l) {
+      d(String(l));
     }
   };
   return /* @__PURE__ */ c(N, { children: [
-    /* @__PURE__ */ n(M, { children: a.settingsTitle }),
+    /* @__PURE__ */ n($, { children: a.settingsTitle }),
     /* @__PURE__ */ c("div", { className: "grid gap-3 text-sm grid-cols-[180px_1fr] items-center", children: [
       /* @__PURE__ */ n("label", { htmlFor: "co-mode", children: a.detectMode }),
-      /* @__PURE__ */ n(D, { label: a.detectMode, value: i.mode, options: ["auto", "notify", "off"], onChange: (o) => g({ ...i, mode: o }) }),
+      /* @__PURE__ */ n(D, { label: a.detectMode, value: i.mode, options: ["auto", "notify", "off"], onChange: (l) => p({ ...i, mode: l }) }),
       /* @__PURE__ */ n("label", { htmlFor: "co-root", children: a.workspaceRoot }),
-      /* @__PURE__ */ n(L, { id: "co-root", value: i.workspace_root, onChange: (o) => g({ ...i, workspace_root: o.target.value }) }),
+      /* @__PURE__ */ n(A, { id: "co-root", value: i.workspace_root, onChange: (l) => p({ ...i, workspace_root: l.target.value }) }),
       /* @__PURE__ */ n("span", { children: a.defaultActivation }),
-      /* @__PURE__ */ n(D, { label: a.defaultActivation, value: i.activation, options: U, onChange: (o) => g({ ...i, activation: o }) }),
+      /* @__PURE__ */ n(D, { label: a.defaultActivation, value: i.activation, options: W, onChange: (l) => p({ ...i, activation: l }) }),
       /* @__PURE__ */ n("span", { children: a.defaultFollow }),
-      /* @__PURE__ */ n(A, { checked: i.thread_follow, onChange: (o) => g({ ...i, thread_follow: o }), label: a.defaultFollow }),
+      /* @__PURE__ */ n(M, { checked: i.thread_follow, onChange: (l) => p({ ...i, thread_follow: l }), label: a.defaultFollow }),
       /* @__PURE__ */ n("span", { children: a.ownerMember }),
-      /* @__PURE__ */ n(A, { checked: i.require_owner_member, onChange: (o) => g({ ...i, require_owner_member: o }), label: a.ownerMember }),
+      /* @__PURE__ */ n(M, { checked: i.require_owner_member, onChange: (l) => p({ ...i, require_owner_member: l }), label: a.ownerMember }),
       /* @__PURE__ */ n("span", { children: a.dedicatedMemory }),
-      /* @__PURE__ */ n(A, { checked: i.dedicated_memory, onChange: (o) => g({ ...i, dedicated_memory: o }), label: a.dedicatedMemory }),
+      /* @__PURE__ */ n(M, { checked: i.dedicated_memory, onChange: (l) => p({ ...i, dedicated_memory: l }), label: a.dedicatedMemory }),
+      /* @__PURE__ */ n("span", { children: a.repoWatch }),
+      /* @__PURE__ */ n(M, { checked: i.repo_watch, onChange: (l) => p({ ...i, repo_watch: l }), label: a.repoWatch }),
+      /* @__PURE__ */ n("label", { htmlFor: "co-watch", children: a.repoWatchSecs }),
+      /* @__PURE__ */ n(A, { id: "co-watch", type: "number", min: 600, max: 86400, value: i.repo_watch_secs, onChange: (l) => p({ ...i, repo_watch_secs: Number(l.target.value) }) }),
       /* @__PURE__ */ n("label", { htmlFor: "co-poll", children: a.pollSecs }),
-      /* @__PURE__ */ n(L, { id: "co-poll", type: "number", min: 60, max: 3600, value: i.poll_secs, onChange: (o) => g({ ...i, poll_secs: Number(o.target.value) }) })
+      /* @__PURE__ */ n(A, { id: "co-poll", type: "number", min: 60, max: 3600, value: i.poll_secs, onChange: (l) => p({ ...i, poll_secs: Number(l.target.value) }) })
     ] }),
-    /* @__PURE__ */ n("div", { className: "mt-3", children: /* @__PURE__ */ n(_, { primary: !0, onClick: s, children: a.saveSettings }) }),
+    /* @__PURE__ */ n("div", { className: "mt-3", children: /* @__PURE__ */ n(_, { primary: !0, onClick: o, children: a.saveSettings }) }),
     /* @__PURE__ */ n("p", { className: "text-xs text-muted mt-2", children: a.modeHelp })
   ] });
 }
 function de() {
-  const e = S(), [t, d] = f(null), [l, i] = f(null), [g, s] = f(""), [o, y] = f(""), p = G(() => {
-    s(""), e.get(`${w}/channels`).then(d).catch((r) => s(String(r))), e.get(`${w}/people`).then(i).catch((r) => s(String(r)));
+  const e = S(), [t, d] = f(null), [s, i] = f(null), [p, o] = f(""), [l, y] = f(""), g = q(() => {
+    o(""), e.get(`${w}/channels`).then(d).catch((r) => o(String(r))), e.get(`${w}/people`).then(i).catch((r) => o(String(r)));
   }, []);
   B(() => {
-    p();
-  }, [p]);
+    g();
+  }, [g]);
   const v = (r) => {
-    y(r), p();
-  }, h = (t == null ? void 0 : t.channels.filter((r) => r.configured)) ?? [], u = (t == null ? void 0 : t.channels.filter((r) => !r.configured && r.bot_member && !r.id.startsWith("D"))) ?? [], m = (l == null ? void 0 : l.capabilities) ?? Z, k = new Set(((l == null ? void 0 : l.channels) ?? []).filter((r) => r.open).map((r) => r.id)), x = new Set(((l == null ? void 0 : l.channels) ?? []).filter((r) => r.maintainers.length > 0).map((r) => r.id)), b = t == null ? void 0 : t.backends;
-  return /* @__PURE__ */ c(j, { children: [
-    /* @__PURE__ */ n(q, { title: "Slack Channels Onboard", subtitle: a.subtitle, actions: /* @__PURE__ */ n(_, { onClick: p, children: a.refresh }) }),
+    y(r), g();
+  }, m = (t == null ? void 0 : t.channels.filter((r) => r.configured)) ?? [], u = (t == null ? void 0 : t.channels.filter((r) => !r.configured && r.bot_member && !r.id.startsWith("D"))) ?? [], h = (s == null ? void 0 : s.capabilities) ?? Z, k = new Set(((s == null ? void 0 : s.channels) ?? []).filter((r) => r.open).map((r) => r.id)), x = new Set(((s == null ? void 0 : s.channels) ?? []).filter((r) => r.maintainers.length > 0).map((r) => r.id)), b = t == null ? void 0 : t.backends;
+  return /* @__PURE__ */ c(F, { children: [
+    /* @__PURE__ */ n(G, { title: "Slack Channels Onboard", subtitle: a.subtitle, actions: /* @__PURE__ */ n(_, { onClick: g, children: a.refresh }) }),
     /* @__PURE__ */ c("div", { className: "px-6 pb-8 overflow-y-auto flex-1 min-h-0 space-y-4", children: [
-      g && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ n("div", { role: "alert", className: "text-danger text-sm", children: g }) }),
-      o && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ n("div", { role: "status", className: "text-sm", children: o }) }),
+      p && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ n("div", { role: "alert", className: "text-danger text-sm", children: p }) }),
+      l && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ n("div", { role: "status", className: "text-sm", children: l }) }),
       (t == null ? void 0 : t.slack_error) && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ c("div", { role: "alert", className: "text-warn text-sm", children: [
         a.slackError,
         t.slack_error
       ] }) }),
-      (l == null ? void 0 : l.roles_error) && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ c("div", { role: "alert", className: "text-danger text-sm", children: [
+      (s == null ? void 0 : s.roles_error) && /* @__PURE__ */ n(N, { children: /* @__PURE__ */ c("div", { role: "alert", className: "text-danger text-sm", children: [
         a.rolesError,
-        l.roles_error
+        s.roles_error
       ] }) }),
       /* @__PURE__ */ c("div", { className: "grid gap-3.5 grid-cols-[repeat(auto-fit,minmax(150px,1fr))]", children: [
-        /* @__PURE__ */ n(I, { label: a.statConfigured, value: t ? h.length : null, accent: !0 }),
+        /* @__PURE__ */ n(I, { label: a.statConfigured, value: t ? m.length : null, accent: !0 }),
         /* @__PURE__ */ n(I, { label: a.statPending, value: t ? u.length : null }),
-        m.open_channel && /* @__PURE__ */ n(I, { label: a.statOpen, value: l ? k.size : null }),
+        h.open_channel && /* @__PURE__ */ n(I, { label: a.statOpen, value: s ? k.size : null }),
         /* @__PURE__ */ n(I, { label: a.statMode, value: t ? t.settings.mode : null })
       ] }),
       /* @__PURE__ */ c(N, { children: [
-        /* @__PURE__ */ n(M, { children: a.pendingTitle }),
-        t && u.length === 0 ? /* @__PURE__ */ n(F, { icon: "✓", title: a.pendingEmptyTitle, subtitle: a.pendingEmptySub }) : /* @__PURE__ */ n("table", { className: "w-full text-left", children: /* @__PURE__ */ n("tbody", { children: u.map((r) => t && /* @__PURE__ */ n(Q, { row: r, settings: t.settings, onDone: p, onError: s }, r.id)) }) })
+        /* @__PURE__ */ n($, { children: a.pendingTitle }),
+        t && u.length === 0 ? /* @__PURE__ */ n(j, { icon: "✓", title: a.pendingEmptyTitle, subtitle: a.pendingEmptySub }) : /* @__PURE__ */ n("table", { className: "w-full text-left", children: /* @__PURE__ */ n("tbody", { children: u.map((r) => t && /* @__PURE__ */ n(Q, { row: r, settings: t.settings, onDone: g, onError: o }, r.id)) }) })
       ] }),
       /* @__PURE__ */ c(N, { children: [
-        /* @__PURE__ */ n(M, { children: a.configuredTitle }),
-        m.open_channel && /* @__PURE__ */ n("p", { className: "text-xs text-muted mb-2", children: a.openHelp }),
+        /* @__PURE__ */ n($, { children: a.configuredTitle }),
+        h.open_channel && /* @__PURE__ */ n("p", { className: "text-xs text-muted mb-2", children: a.openHelp }),
         (b == null ? void 0 : b.supported) && /* @__PURE__ */ n("p", { className: "text-xs text-muted mb-2", children: a.backendHelp(b.refuses) }),
         b && !b.supported && /* @__PURE__ */ c("p", { className: "text-xs text-muted mb-2", children: [
           a.backendUnsupported,
@@ -634,33 +642,33 @@ function de() {
             /* @__PURE__ */ n("th", { className: "pb-2 pr-3", children: a.colWorkspace }),
             /* @__PURE__ */ n("th", { className: "pb-2 pr-3", children: a.colActivation }),
             /* @__PURE__ */ n("th", { className: "pb-2 pr-3", children: a.colFollow }),
-            m.open_channel && /* @__PURE__ */ n("th", { className: "pb-2 pr-3", children: a.colOpen }),
+            h.open_channel && /* @__PURE__ */ n("th", { className: "pb-2 pr-3", children: a.colOpen }),
             /* @__PURE__ */ n("th", { className: "pb-2" })
           ] }) }),
-          /* @__PURE__ */ n("tbody", { children: h.map((r) => /* @__PURE__ */ n(
+          /* @__PURE__ */ n("tbody", { children: m.map((r) => /* @__PURE__ */ n(
             J,
             {
               row: r,
               open: k.has(r.id),
-              canOpen: m.open_channel,
+              canOpen: h.open_channel,
               backends: b,
               hasMaintainers: x.has(r.id),
-              onSaved: p,
+              onSaved: g,
               onNotice: v,
-              onError: s
+              onError: o
             },
             `${r.id}:${r.workspace_dir}:${r.activation}:${r.thread_follow}:${k.has(r.id)}:${r.acp_backend ?? P}`
           )) })
         ] })
       ] }),
-      l && !m.any && /* @__PURE__ */ c(N, { children: [
-        /* @__PURE__ */ n(M, { children: a.peopleUnsupportedTitle }),
+      s && !h.any && /* @__PURE__ */ c(N, { children: [
+        /* @__PURE__ */ n($, { children: a.peopleUnsupportedTitle }),
         /* @__PURE__ */ n("p", { className: "text-sm text-muted", children: a.peopleUnsupported }),
         /* @__PURE__ */ n("p", { className: "text-sm mt-2", children: /* @__PURE__ */ n("a", { href: R, target: "_blank", rel: "noreferrer", className: "underline", children: a.patchesLink }) })
       ] }),
-      l && m.members && /* @__PURE__ */ n(ee, { people: l, onSaved: v, onError: s }),
-      l && m.maintainers && /* @__PURE__ */ n(re, { people: l, caps: m, onSaved: v, onError: s }),
-      t && /* @__PURE__ */ n(ie, { settings: t.settings, onSaved: p, onError: s })
+      s && h.members && /* @__PURE__ */ n(ee, { people: s, onSaved: v, onError: o }),
+      s && h.maintainers && /* @__PURE__ */ n(re, { people: s, caps: h, onSaved: v, onError: o }),
+      t && /* @__PURE__ */ n(ie, { settings: t.settings, onSaved: g, onError: o })
     ] })
   ] });
 }

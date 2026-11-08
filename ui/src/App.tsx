@@ -40,6 +40,8 @@ interface Settings {
   require_owner_member: boolean
   dedicated_memory: boolean
   poll_secs: number
+  repo_watch: boolean
+  repo_watch_secs: number
 }
 
 interface BackendOption { id: string; label: string; installed: string }
@@ -497,6 +499,10 @@ function SettingsCard({ settings, onSaved, onError }: { settings: Settings; onSa
         <Toggle checked={s.require_owner_member} onChange={(v) => setS({ ...s, require_owner_member: v })} label={t.ownerMember} />
         <span>{t.dedicatedMemory}</span>
         <Toggle checked={s.dedicated_memory} onChange={(v) => setS({ ...s, dedicated_memory: v })} label={t.dedicatedMemory} />
+        <span>{t.repoWatch}</span>
+        <Toggle checked={s.repo_watch} onChange={(v) => setS({ ...s, repo_watch: v })} label={t.repoWatch} />
+        <label htmlFor="co-watch">{t.repoWatchSecs}</label>
+        <Input id="co-watch" type="number" min={600} max={86400} value={s.repo_watch_secs} onChange={(e) => setS({ ...s, repo_watch_secs: Number(e.target.value) })} />
         <label htmlFor="co-poll">{t.pollSecs}</label>
         <Input id="co-poll" type="number" min={60} max={3600} value={s.poll_secs} onChange={(e) => setS({ ...s, poll_secs: Number(e.target.value) })} />
       </div>

@@ -27,8 +27,20 @@ routes the channel to it.
   waiting channels; edit the workspace directory (must already exist, e.g. an
   existing repo), activation and `thread_follow` of onboarded ones; edit the
   detector settings.
+- **Repository watch** (`repo_watch`, default on): onboarding also lists the
+  channel in `slack.tracking_channels` (the gateway refuses to send to a channel
+  that is not tracked) and creates one hourly, zero-token cron job per GitHub
+  repository found in the channel's workspace (the folder itself or one level
+  below). Each run posts into the channel only what is NEW since the last run: a
+  failing workflow on the default branch, a high or critical Dependabot alert, a
+  pull request with no update for three days, a new issue. A quiet repository
+  stays silent. Pointing a channel at another workspace re-creates its watches;
+  unbinding removes them. The jobs belong to this app (permission `cron`), so
+  uninstalling the app removes them too. The check interval is
+  `repo_watch_secs` (600 to 86400, default 3600). It needs the `gh` CLI
+  authenticated on the gateway host and is read-only.
 - **Unbind** a channel the bot has left: removes only its `slack.channels`
-  binding (and its roles entry). Refused while the bot is still in the channel or
+  binding, its roles entry, its tracking entry and its repository watches. Refused while the bot is still in the channel or
   when Slack cannot be read. The agent, workspace and memory are kept.
 
 Every write is recorded in the SEL audit log (`slack_channels_onboard.*`).

@@ -537,3 +537,181 @@ def test_update_backend_refuses_unusable_values(backend_ops, monkeypatch):
 def test_backend_support_hides_the_column_on_a_stock_gateway(monkeypatch):
     monkeypatch.setattr(ops, "_backend_field_supported", lambda: False)
     assert asyncio.run(ops.backend_support()) == {"supported": False, "options": [], "default": "", "refuses": False}
+
+
+# ----------------------------------------------------------- repo watch
+
+
+@pytest.mark.parametrize(
+    "url,slug",
+    [
+        ("git@github.com:acme/widgets.git", "acme/widgets"),
+        ("git@github.com-work:acme/widgets.git", "acme/widgets"),
+        ("ssh://git@github.com/acme/widgets", "acme/widgets"),
+        ("https://github.com/acme/widgets.git", "acme/widgets"),
+        ("https://token@github.com/acme/widgets/", "acme/widgets"),
+        ("git@gitlab.com:acme/widgets.git", None),
+        ("https://example.com/acme/widgets", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_github_repo(url, slug):
+    assert core.github_repo(url) == slug
+
+
+def test_watch_settings_are_clamped():
+    assert core.normalize_settings({})["repo_watch"] is True
+    s = core.normalize_settings({"repo_watch": False, "repo_watch_secs": 5})
+    assert s["repo_watch"] is False and s["repo_watch_secs"] == 600
+    assert core.normalize_settings({"repo_watch_secs": 10**9})["repo_watch_secs"] == 86400
+    assert core.normalize_settings({"repo_watch": "yes"})["repo_watch"] is True
+
+
+def test_tracking_mutators_are_idempotent():
+    data: dict = {}
+    core.add_tracking(data, "C1")
+    core.add_tracking(data, "C1")
+    core.add_tracking(data, "C2")
+    assert data["slack"]["tracking_channels"] == [{"channel_id": "C1"}, {"channel_id": "C2"}]
+    core.remove_tracking(data, "C1")
+    assert data["slack"]["tracking_channels"] == [{"channel_id": "C2"}]
+    assert core.remove_tracking({}, "C9") == {}
+
+
+def test_watch_message_round_trips():
+    msg = core.watch_message("acme/widgets", "widgets", "C1")
+    assert core.watch_channel(msg) == "C1"
+    assert core.watch_channel("not json") == ""
+    assert core.watch_channel("[1]") == ""
+
+
+class _FakeJob:
+    def __init__(self, id, name, message):
+        self.id, self.name, self.message = id, name, message
+
+
+class _FakeCron:
+    def __init__(self):
+        self.jobs: list[_FakeJob] = []
+
+    async def add_job_if_absent_async(self, name, message, **kw):
+        if any(j.name == name for j in self.jobs):
+            return None
+        self.jobs.append(_FakeJob(f"j{len(self.jobs)}", name, message))
+        self.kw = kw
+        return self.jobs[-1]
+
+    def list_jobs(self):
+        return list(self.jobs)
+
+    async def remove_job_async(self, job_id):
+        before = len(self.jobs)
+        self.jobs = [j for j in self.jobs if j.id != job_id]
+        return len(self.jobs) < before
+
+
+class _FakeCtx:
+    def __init__(self):
+        self.cron = _FakeCron()
+
+
+def _git_repo(path: Path, remote: str) -> None:
+    (path / ".git").mkdir(parents=True)
+    (path / ".git" / "marker").write_text(remote)
+
+
+@pytest.fixture
+def watch_env(monkeypatch):
+    written: list[dict] = []
+
+    async def write(mutate):
+        data: dict = {}
+        mutate(data)
+        written.append(data)
+
+    monkeypatch.setattr(ops, "_write", write)
+    monkeypatch.setattr(ops, "_audit", lambda *a, **k: None)
+    monkeypatch.setattr(
+        ops, "_git_origin", lambda p: (Path(p) / ".git" / "marker").read_text()
+    )
+    return written
+
+
+def test_find_github_repos_root_and_children(tmp_path, watch_env):
+    _git_repo(tmp_path / "api", "git@github.com:acme/api.git")
+    _git_repo(tmp_path / "web", "https://github.com/acme/web")
+    _git_repo(tmp_path / "other", "git@gitlab.com:acme/other.git")
+    _git_repo(tmp_path / "node_modules" / "x", "git@github.com:acme/x.git")
+    assert ops.find_github_repos(str(tmp_path)) == ["acme/api", "acme/web"]
+    _git_repo(tmp_path, "git@github.com:acme/mono.git")
+    assert ops.find_github_repos(str(tmp_path))[0] == "acme/mono"
+    assert ops.find_github_repos(str(tmp_path / "missing")) == []
+
+
+def test_attach_watch_creates_one_job_per_repo(tmp_path, watch_env):
+    _git_repo(tmp_path / "api", "git@github.com:acme/api.git")
+    ctx = _FakeCtx()
+    settings = core.normalize_settings({"repo_watch_secs": 1800})
+    repos = asyncio.run(ops.attach_watch(ctx, "C1", "team", str(tmp_path), settings))
+    assert repos == ["acme/api"]
+    assert watch_env[0]["slack"]["tracking_channels"] == [{"channel_id": "C1"}]
+    (job,) = ctx.cron.jobs
+    assert job.name == "Repo watch: acme/api"
+    assert json.loads(job.message) == {"repo": "acme/api", "name": "team", "channel": "C1"}
+    assert ctx.cron.kw["every_secs"] == 1800
+    assert ctx.cron.kw["script"] == core.WATCH_SCRIPT
+    assert ctx.cron.kw["silent"] is True and ctx.cron.kw["persistent_session"] is False
+    # a second pass adds nothing
+    asyncio.run(ops.attach_watch(ctx, "C1", "team", str(tmp_path), settings))
+    assert len(ctx.cron.jobs) == 1
+
+
+def test_attach_watch_off_still_tracks_the_channel(tmp_path, watch_env):
+    _git_repo(tmp_path / "api", "git@github.com:acme/api.git")
+    ctx = _FakeCtx()
+    settings = core.normalize_settings({"repo_watch": False})
+    assert asyncio.run(ops.attach_watch(ctx, "C1", "team", str(tmp_path), settings)) == []
+    assert ctx.cron.jobs == []
+    assert watch_env[0]["slack"]["tracking_channels"] == [{"channel_id": "C1"}]
+
+
+def test_attach_watch_without_cron_permission(tmp_path, watch_env):
+    _git_repo(tmp_path / "api", "git@github.com:acme/api.git")
+    ctx = type("C", (), {})()
+    settings = core.normalize_settings({})
+    assert asyncio.run(ops.attach_watch(ctx, "C1", "team", str(tmp_path), settings)) == []
+
+
+def test_detach_watch_removes_only_this_channels_jobs():
+    ctx = _FakeCtx()
+    ctx.cron.jobs = [
+        _FakeJob("a", "Repo watch: acme/api", core.watch_message("acme/api", "t", "C1")),
+        _FakeJob("b", "Repo watch: acme/web", core.watch_message("acme/web", "t", "C2")),
+        _FakeJob("c", "Other job", core.watch_message("acme/x", "t", "C1")),
+    ]
+    assert asyncio.run(ops.detach_watch(ctx, "C1")) == 1
+    assert [j.id for j in ctx.cron.jobs] == ["b", "c"]
+    assert asyncio.run(ops.detach_watch(type("C", (), {})(), "C1")) == 0
+
+
+def test_shipped_repo_watch_script_is_portable():
+    text = (_BACKEND / "repo_watch.py").read_text()
+    assert "/home/" not in text and "/Users/" not in text
+    compile(text, "repo_watch.py", "exec")
+
+
+def test_unbind_with_ctx_untracks_and_detaches(people_ops, monkeypatch):
+    people_ops["cfg"]["slack"]["channels"]["C2"] = {"agent": "b"}
+    people_ops["cfg"]["slack"]["tracking_channels"] = [{"channel_id": "C2"}]
+    ctx = _FakeCtx()
+    ctx.cron.jobs = [_FakeJob("a", "Repo watch: acme/api", core.watch_message("acme/api", "b", "C2"))]
+
+    async def _bot():
+        return []
+
+    monkeypatch.setattr(ops, "bot_channels", _bot)
+    out = asyncio.run(ops.unbind("C2", ctx=ctx))
+    assert out == {"channel_id": "C2", "ok": True, "removed_watches": 1}
+    assert people_ops["cfg"]["slack"]["tracking_channels"] == []
+    assert ctx.cron.jobs == []

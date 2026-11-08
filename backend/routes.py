@@ -93,6 +93,7 @@ async def post_onboard(request: web.Request, ctx: Any) -> web.Response:
             settings,
             name=body.get("name") or None,
             workspace_dir=body.get("workspace_dir") or None,
+            ctx=ctx,
         )
     except ValueError as exc:
         return _err(str(exc))
@@ -116,6 +117,8 @@ async def post_reconfigure(request: web.Request, ctx: Any) -> web.Response:
             workspace_dir=body.get("workspace_dir"),
             activation=body.get("activation"),
             thread_follow=body.get("thread_follow"),
+            ctx=ctx,
+            settings=core.normalize_settings(load_settings(ctx)),
         )
     except ValueError as exc:
         return _err(str(exc))
@@ -302,7 +305,7 @@ async def post_unbind(request: web.Request, ctx: Any) -> web.Response:
         return denied
     body = await _body(request)
     try:
-        return web.json_response(await gateway_ops.unbind(str(body.get("channel_id", "")).strip()))
+        return web.json_response(await gateway_ops.unbind(str(body.get("channel_id", "")).strip(), ctx=ctx))
     except ValueError as exc:
         return _err(str(exc))
     except Exception as exc:  # noqa: BLE001
